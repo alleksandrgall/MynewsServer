@@ -27,8 +27,9 @@ library
   exposed-modules:
       DB.Queries
       DB.Scheme
+      DB.Types.Internal
+      Dev
       Lib
-      Types.NestCategories
   other-modules:
       Paths_metaLampServer
   hs-source-dirs:
@@ -40,14 +41,21 @@ library
     , base >=4.7 && <5
     , bytestring
     , containers
+    , cryptonite
+    , directory
     , esqueleto
     , monad-logger
+    , mtl
     , persistent
     , persistent-postgresql
     , persistent-template
     , servant
+    , servant-multipart
+    , servant-server
     , text
     , time
+    , unix
+    , warp
   default-language: Haskell2010
 
 executable metaLampServer-exe
@@ -62,15 +70,22 @@ executable metaLampServer-exe
     , base >=4.7 && <5
     , bytestring
     , containers
+    , cryptonite
+    , directory
     , esqueleto
     , metaLampServer
     , monad-logger
+    , mtl
     , persistent
     , persistent-postgresql
     , persistent-template
     , servant
+    , servant-multipart
+    , servant-server
     , text
     , time
+    , unix
+    , warp
   default-language: Haskell2010
 
 test-suite metaLampServer-test
@@ -86,13 +101,20 @@ test-suite metaLampServer-test
     , base >=4.7 && <5
     , bytestring
     , containers
+    , cryptonite
+    , directory
     , esqueleto
     , metaLampServer
     , monad-logger
+    , mtl
     , persistent
     , persistent-postgresql
     , persistent-template
     , servant
+    , servant-multipart
+    , servant-server
     , text
     , time
+    , unix
+    , warp
   default-language: Haskell2010

@@ -21,6 +21,7 @@ import Data.ByteString
 import Data.Time
 import Database.Esqueleto.Experimental
 import Database.Persist.TH
+import GHC.Exts (fromList)
 import GHC.Generics (Generic)
 
 share
@@ -30,7 +31,7 @@ User
     Id          sql=user_id
     name String sql=user_name 
     UniqueUserName name
-    avatar ByteString
+    avatar ByteString Maybe
     passwordHash ByteString
     created UTCTime default=CURRENT_DATE
     isAdmin Bool
@@ -38,17 +39,24 @@ User
 Category
     Id          sql=category_id
     name String sql=category_name
-    UniqueCatName name
     parent CategoryId Maybe sql=parent_category
     deriving Generic Show
 Article
     Id          sql=article_id
-    description String
+    title String sqltype=varchar(255)
     userId UserId
     categoryId CategoryId
     content String
+    isPublished Bool
 Image
     Id          sql=image_id
-    bytes ByteString sql=image_bytes
+    mime String
+    path String
     articleId ArticleId
 |]
+
+instance ToJSON Category where
+  toJSON = genericToJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
+
+instance ToJSON (Entity Category) where
+  toJSON = entityIdToJSON

@@ -21,9 +21,12 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.7 && < 5
-- persistent
 - servant
+- servant-multipart
+- servant-server
+- warp
 - esqueleto
+- persistent
 - time
 - bytestring
 - persistent-postgresql
@@ -32,6 +35,10 @@ dependencies:
 - aeson
 - text
 - containers
+- cryptonite
+- mtl
+- directory
+- unix
 
 library:
   source-dirs: src
