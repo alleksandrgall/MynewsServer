@@ -31,7 +31,7 @@ User
     Id          sql=user_id
     name String sql=user_name 
     UniqueUserName name
-    avatar ByteString Maybe
+    avatar ImageId Maybe
     passwordHash ByteString
     created UTCTime default=CURRENT_DATE
     isAdmin Bool

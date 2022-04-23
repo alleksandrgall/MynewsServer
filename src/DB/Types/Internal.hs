@@ -1,5 +1,8 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module DB.Types.Internal where
 
+import Crypto.KDF.BCrypt (hashPassword)
 import DB.Scheme
 import Data.Aeson hiding (Value)
 import Data.ByteString (ByteString)
@@ -10,6 +13,7 @@ import Data.Maybe (isNothing)
 import Data.Text (pack)
 import Data.Time (UTCTime)
 import Database.Esqueleto.Experimental (Entity (entityKey, entityVal), Value)
+import Dev (createUser)
 
 data NestCategory = Cat CategoryId String NestCategory | Non
   deriving (Show)
@@ -31,6 +35,20 @@ parseNestCat ents =
       children (Just c) =
         Cat (entityKey c) (categoryName . entityVal $ c) $ children . M.lookup (Just $ entityKey c) $ mEnt
    in children root
+
+data IncomingUser = IncomingUser {name :: String, password :: String, avatar :: Maybe ImageId, isAdmin_ :: Bool, isAuthor_ :: Bool}
+
+incUserToDbUser :: IncomingUser -> IO User
+incUserToDbUser IncomingUser {..} = createUser name password avatar isAdmin_ isAuthor_
+
+instance FromJSON IncomingUser where
+  parseJSON (Object o) =
+    IncomingUser <$> o .: "name"
+      <*> o .: "password"
+      <*> o .:? "avatar"
+      <*> o .:? "is_admin" .!= False
+      <*> o .:? "is_author" .!= False
+  parseJSON _ = mempty
 
 data InternalUser = InternalUser
   { iUserId :: UserId,
