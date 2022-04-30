@@ -9,6 +9,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -17,7 +18,7 @@
 module DB.Scheme where
 
 import Data.Aeson
-import Data.ByteString
+import qualified Data.ByteString as BS
 import Data.Time
 import Database.Esqueleto.Experimental
 import Database.Persist.TH
@@ -32,7 +33,7 @@ User
     name String sql=user_name 
     UniqueUserName name
     avatar ImageId Maybe
-    passwordHash ByteString
+    passwordHash BS.ByteString
     created UTCTime default=CURRENT_DATE
     isAdmin Bool
     isAuthor Bool
@@ -52,8 +53,24 @@ Image
     Id          sql=image_id
     mime String
     path String
+ImageArticle
+    Id sql=image_article_id
     articleId ArticleId
+    imageId ImageId
 |]
+
+instance ToJSON User where
+  toJSON User {..} =
+    object
+      [ "username" .= userName,
+        "avatar" .= userAvatar,
+        "created" .= userCreated,
+        "isAdmin" .= userIsAdmin,
+        "isAuthor" .= userIsAuthor
+      ]
+
+instance ToJSON (Entity User) where
+  toJSON = entityIdToJSON
 
 instance ToJSON Category where
   toJSON = genericToJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}

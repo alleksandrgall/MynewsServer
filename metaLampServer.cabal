@@ -25,12 +25,15 @@ source-repository head
 
 library
   exposed-modules:
+      Api
+      Api.Pagination
+      Api.User
       Auth
       DB.Queries
       DB.Scheme
       DB.Types.Internal
       Dev
-      Lib
+      Utils
   other-modules:
       Paths_metaLampServer
   hs-source-dirs:

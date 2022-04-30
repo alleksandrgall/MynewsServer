@@ -18,6 +18,7 @@ import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (ReaderT)
 import DB.Scheme
+import DB.Scheme (Unique (UniqueUserName))
 import Data.ByteString (ByteString)
 import Data.Int (Int64)
 import Data.List (find)
@@ -51,6 +52,14 @@ type Limit = Int64
 
 type Offset = Int64
 
+queryInsertUser :: User -> SqlPersistM UserId
+queryInsertUser = insert
+
+queryPromoteToAuthor :: String -> SqlPersistM ()
+queryPromoteToAuthor name = update $ \u -> do
+  set u [UserIsAuthor =. val True]
+  where_ $ u ^. UserName ==. val name
+
 queryCategoryList :: SqlQuery (SqlExpr (Entity Category))
 queryCategoryList = from $ table @Category
 
@@ -72,19 +81,19 @@ addArticleSearch substr q = do
       ||. c ^. CategoryName `like` val ("%" <> substr <> "%")
   pure (a :& u :& c)
 
-queryArticles :: SqlQuery (SqlExpr (Entity Article), SqlExpr (Entity User), SqlExpr (Entity Category), SqlExpr (Value ImageId))
-queryArticles = do
-  (a :& u :& c :& im) <-
-    from $
-      table @Article
-        `innerJoin` table @User
-        `on` (\(a :& u) -> a ^. ArticleUserId ==. u ^. UserId)
-        `innerJoin` table @Category
-        `on` (\(a :& _ :& c) -> a ^. ArticleCategoryId ==. c ^. CategoryId)
-        `innerJoin` table @Image
-        `on` (\(a :& _ :& _ :& im) -> im ^. ImageArticleId ==. a ^. ArticleId)
-  groupBy (a ^. ArticleId)
-  pure (a, u, c, im ^. ImageId)
+-- queryArticles :: SqlQuery (SqlExpr (Entity Article), SqlExpr (Entity User), SqlExpr (Entity Category), SqlExpr (Value ImageId))
+-- queryArticles = do
+--   (a :& u :& c :& im) <-
+--     from $
+--       table @Article
+--         `innerJoin` table @User
+--         `on` (\(a :& u) -> a ^. ArticleUserId ==. u ^. UserId)
+--         `innerJoin` table @Category
+--         `on` (\(a :& _ :& c) -> a ^. ArticleCategoryId ==. c ^. CategoryId)
+--         `innerJoin` table @Image
+--         `on` (\(a :& _ :& _ :& im) -> im ^. ImageArticleId ==. a ^. ArticleId)
+--   groupBy (a ^. ArticleId)
+--   pure (a, u, c, im ^. ImageId)
 
-f :: SqlPersistM [(Entity Article, Entity User, Entity Category, Value ImageId)]
-f = select queryArticles
+-- f :: SqlPersistM [(Entity Article, Entity User, Entity Category, Value ImageId)]
+-- f = select queryArticles

@@ -36,16 +36,15 @@ parseNestCat ents =
         Cat (entityKey c) (categoryName . entityVal $ c) $ children . M.lookup (Just $ entityKey c) $ mEnt
    in children root
 
-data IncomingUser = IncomingUser {name :: String, password :: String, avatar :: Maybe ImageId, isAdmin_ :: Bool, isAuthor_ :: Bool}
+data IncomingUser = IncomingUser {name :: String, password :: String, isAdmin_ :: Bool, isAuthor_ :: Bool}
 
-incUserToDbUser :: IncomingUser -> IO User
-incUserToDbUser IncomingUser {..} = createUser name password avatar isAdmin_ isAuthor_
+incUserToDbUser :: IncomingUser -> Maybe ImageId -> IO User
+incUserToDbUser IncomingUser {..} imId = createUser name password imId isAdmin_ isAuthor_
 
 instance FromJSON IncomingUser where
   parseJSON (Object o) =
     IncomingUser <$> o .: "name"
       <*> o .: "password"
-      <*> o .:? "avatar"
       <*> o .:? "is_admin" .!= False
       <*> o .:? "is_author" .!= False
   parseJSON _ = mempty

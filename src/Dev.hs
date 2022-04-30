@@ -12,9 +12,10 @@ import Control.Monad.Logger (runStderrLoggingT)
 import Control.Monad.Reader (MonadIO (liftIO))
 import Crypto.KDF.BCrypt (hashPassword)
 import DB.Scheme
-import Data.Aeson (ToJSON)
+import Data.Aeson (KeyValue ((.=)), ToJSON (toJSON), object)
 import qualified Data.ByteString as BS
 import Data.Int (Int64)
+import Data.Maybe
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (getCurrentTime)
@@ -24,23 +25,18 @@ import GHC.Generics (Generic)
 import Network.Wai.Handler.Warp (run)
 import Servant
 
-connectionString = "host=localhost port=5432 user=turban dbname=news_db password=1781"
+conStringDev = "host=localhost port=5432 user=turban dbname=news_db password=1781"
 
-maxFiles :: Int
-maxFiles = 30
+limitDev :: Int
+limitDev = 20
 
-imageRoot = "/home/turban/metaLampServer/images"
+maxFilesDev :: Int
+maxFilesDev = 30
 
-maxImageSize :: Int64
-maxImageSize = 20971520
+imageRootDev = "/home/turban/metaLampServer/images"
 
-data Ok = Ok
-  { ok :: Bool,
-    description :: String
-  }
-  deriving (Show, Generic)
-
-instance ToJSON Ok
+imageSizeDev :: Int64
+imageSizeDev = 20971520
 
 runDev :: forall api. HasServer api '[BasicAuthCheck User] => Proxy api -> Server api -> IO ()
 runDev api server = run 3000 (serveWithContext api ctx server)
@@ -51,7 +47,7 @@ runDBDev ::
   SqlPersistM a ->
   IO a
 runDBDev x = runStderrLoggingT $
-  withPostgresqlPool connectionString 1 $ \pool -> liftIO $ do
+  withPostgresqlPool conStringDev 1 $ \pool -> liftIO $ do
     runSqlPersistMPool x pool
 
 userIsAdmin_ :: User -> Handler ()
