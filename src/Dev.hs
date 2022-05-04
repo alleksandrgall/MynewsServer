@@ -19,8 +19,8 @@ import Data.Maybe
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (getCurrentTime)
-import Database.Persist.Postgresql (withPostgresqlPool)
-import Database.Persist.Sql (SqlPersistM, runSqlPersistMPool)
+import Database.Persist.Postgresql (SqlPersistT, withPostgresqlPool)
+import Database.Persist.Sql (SqlPersistM, liftSqlPersistMPool, runSqlPersistMPool, withSqlPool)
 import GHC.Generics (Generic)
 import Network.Wai.Handler.Warp (run)
 import Servant
@@ -44,11 +44,9 @@ runDev api server = run 3000 (serveWithContext api ctx server)
     ctx = checkBasicAuth runDBDev :. EmptyContext
 
 runDBDev ::
-  SqlPersistM a ->
-  IO a
-runDBDev x = runStderrLoggingT $
-  withPostgresqlPool conStringDev 1 $ \pool -> liftIO $ do
-    runSqlPersistMPool x pool
+  (MonadIO m) => SqlPersistM a -> m a
+runDBDev x = liftIO . runStderrLoggingT $
+  withPostgresqlPool conStringDev 1 $ \pool -> liftSqlPersistMPool x pool
 
 userIsAdmin_ :: User -> Handler ()
 userIsAdmin_ User {..} = unless userIsAdmin $ throwError err404

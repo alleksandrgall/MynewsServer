@@ -25,7 +25,7 @@ import Data.List (find)
 import qualified Data.Map as M
 import Data.Maybe (isNothing)
 import Database.Esqueleto.Experimental hiding (insert, isNothing)
-import Database.Persist (insert)
+import Database.Persist (Update, insert)
 
 queryNestCategoryById :: CategoryId -> SqlQuery (SqlExpr (Entity Category))
 queryNestCategoryById catId = do
@@ -62,9 +62,6 @@ queryPromoteToAuthor name = update $ \u -> do
 
 queryCategoryList :: SqlQuery (SqlExpr (Entity Category))
 queryCategoryList = from $ table @Category
-
-addPagination :: Limit -> Offset -> SqlQuery (SqlExpr a) -> SqlQuery (SqlExpr a)
-addPagination lim off q = q >>= \r -> limit lim >> offset off >> pure r
 
 addFilter :: (SqlExpr a -> SqlExpr (Value Bool)) -> SqlQuery (SqlExpr a) -> SqlQuery (SqlExpr a)
 addFilter p q = q >>= \r -> where_ (p r) >> pure r

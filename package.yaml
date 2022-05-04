@@ -38,7 +38,8 @@ dependencies:
 - cryptonite
 - mtl
 - directory
-- unix
+- exceptions
+- unliftio-core
 
 library:
   source-dirs: src

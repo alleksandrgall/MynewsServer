@@ -6,6 +6,7 @@
 
 module Api where
 
+import Api.Pagination
 import DB.Scheme
 import DB.Types.Internal
 import Data.Aeson (ToJSON, decode)
@@ -17,21 +18,6 @@ import Dev
 import GHC.Generics (Generic)
 import Servant
 import Servant.Multipart
-
-type Pagination = QueryParam "offset" Int :> QueryParam "limit" Int
-
-data WithOffset a = WithOffset {offset :: Int, content :: a}
-  deriving (Generic, Show, ToJSON)
-
-type UserApi =
-  BasicAuth "admin" User
-    :> ( "create" :> MultipartForm Mem (MultipartData Mem) :> Post '[JSON] (WithStatus 201 UserId)
-           :<|> "to_author" :> QueryParam' '[Required] "username" String :> Post '[JSON] (WithStatus 202 ())
-       )
-      :<|> ( "get"
-               :> Pagination
-               :> Get '[JSON] [InternalUser]
-           )
 
 instance FromMultipart Mem IncomingUser where
   fromMultipart form = case decode . LBS.fromStrict . encodeUtf8 <$> lookupInput "user" form of
@@ -50,7 +36,7 @@ type ArticleApi =
                          )
                 )
        )
-    :<|> ("get" :> Pagination :> ArticleFilters :> QueryParam "sort_by" SortBy :> Get '[JSON] [InternalArticle])
+    :<|> ("get" :> ArticleFilters :> QueryParam "sort_by" SortBy :> Get '[JSON] [InternalArticle])
 
 data SortBy = Date | Author | Category_ | ImageNum
 
@@ -78,23 +64,4 @@ type ArticleFilters =
     --которая может быть найдена либо в текстовом контенте, либо в имени автора, либо в названии категории.
     :> QueryParam "search" String
 
-type CategoryApi =
-  BasicAuth "admin" User
-    :> ( "create" :> QueryParam' [Required, Strict] "name" String :> QueryParam' [Required, Strict] "parent" CategoryId :> Post '[JSON] (WithStatus 201 CategoryId)
-           :<|> "alter" :> Capture "category_id" CategoryId
-             :> QueryParam' [Required, Strict] "name" String
-             :> QueryParam' [Required, Strict] "parent" CategoryId
-             :> Post '[JSON] (WithStatus 202 ())
-       )
-    :<|> ("get" :> Pagination :> Get '[JSON] [Category])
-
 type ImageApi = Capture "image_id" ImageId :> Raw
-
-type Api =
-  "users" :> UserApi
-    :<|> "news" :> ArticleApi
-    :<|> "category" :> CategoryApi
-    :<|> "image" :> ImageApi
-
-api :: Proxy Api
-api = Proxy

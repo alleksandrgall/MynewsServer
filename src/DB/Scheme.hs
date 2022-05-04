@@ -25,6 +25,13 @@ import Database.Persist.TH
 import GHC.Exts (fromList)
 import GHC.Generics (Generic)
 
+{-
+Can't add uniqueness constraint to Category table based on the restriction that two categories with the same parent can't have the same name.
+Reason: By default we disallow NULLables in an uniqueness constraint.  The semantics of how NULL interacts with those constraints is non-trivial:
+  two NULL values are not considered equal for the purposes of an uniqueness constraint.
+Could be worked around with adding "root category", decided not to, since it is unsafe.
+-}
+
 share
   [mkPersist sqlSettings, mkMigrate "migrateAll"]
   [persistLowerCase|

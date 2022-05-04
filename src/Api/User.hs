@@ -12,7 +12,6 @@ module Api.User where
 import Api.Pagination
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
-import DB.Queries (queryInsertUser, queryPromoteToAuthor)
 import DB.Scheme
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
@@ -86,17 +85,17 @@ create admin form = do
           avIds <- liftIO $ saveInsertToDbImages v imageRootDev (const $ return ())
           return (Just . head $ avIds)
       dbU <- liftIO $ incUserToDbUser incUser maybeAvId
-      liftIO . runDBDev $ insert dbU
+      runDBDev $ insert dbU
 
 isUserExists :: String -> Handler Bool
-isUserExists name = (liftIO . runDBDev . getBy $ UniqueUserName name) >>= maybe (return False) (\_ -> return True)
+isUserExists name = (runDBDev . getBy $ UniqueUserName name) >>= maybe (return False) (\_ -> return True)
 
 toAuthor :: User -> String -> Handler NoContent
 toAuthor u name = do
   userIsAdmin_ u
   exists_ <- isUserExists name
   when (not exists_) (throwError err400 {errReasonPhrase = "No such user."})
-  liftIO . runDBDev $
+  runDBDev $
     update $ \u -> do
       set u [UserIsAuthor =. val True]
       where_ $ u ^. UserName ==. val name
@@ -105,7 +104,7 @@ toAuthor u name = do
 get :: Maybe Int -> Maybe Int -> Handler (WithOffset [Entity User])
 get off lim = do
   offsetLimValid lim off
-  usrs <- liftIO . runDBDev
+  usrs <- runDBDev
     . select
     $ do
       user <- from $ table @User

@@ -26,13 +26,16 @@ source-repository head
 library
   exposed-modules:
       Api
+      Api.Category
       Api.Pagination
       Api.User
+      Api.Utils
       Auth
       DB.Queries
       DB.Scheme
       DB.Types.Internal
       Dev
+      Monad
       Utils
   other-modules:
       Paths_metaLampServer
@@ -48,6 +51,7 @@ library
     , cryptonite
     , directory
     , esqueleto
+    , exceptions
     , monad-logger
     , mtl
     , persistent
@@ -58,7 +62,7 @@ library
     , servant-server
     , text
     , time
-    , unix
+    , unliftio-core
     , warp
   default-language: Haskell2010
 
@@ -77,6 +81,7 @@ executable metaLampServer-exe
     , cryptonite
     , directory
     , esqueleto
+    , exceptions
     , metaLampServer
     , monad-logger
     , mtl
@@ -88,7 +93,7 @@ executable metaLampServer-exe
     , servant-server
     , text
     , time
-    , unix
+    , unliftio-core
     , warp
   default-language: Haskell2010
 
@@ -108,6 +113,7 @@ test-suite metaLampServer-test
     , cryptonite
     , directory
     , esqueleto
+    , exceptions
     , metaLampServer
     , monad-logger
     , mtl
@@ -119,6 +125,6 @@ test-suite metaLampServer-test
     , servant-server
     , text
     , time
-    , unix
+    , unliftio-core
     , warp
   default-language: Haskell2010
