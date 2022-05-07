@@ -31,7 +31,10 @@ dependencies:
 - bytestring
 - persistent-postgresql
 - persistent-template
+# postgresql-simple brings in the scope SqlError which is used for exception handling
+- postgresql-simple
 - monad-logger
+- wai-extra
 - aeson
 - text
 - containers

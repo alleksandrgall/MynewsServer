@@ -23,6 +23,7 @@ import Database.Persist.Postgresql (SqlPersistT, withPostgresqlPool)
 import Database.Persist.Sql (SqlPersistM, liftSqlPersistMPool, runSqlPersistMPool, withSqlPool)
 import GHC.Generics (Generic)
 import Network.Wai.Handler.Warp (run)
+import Network.Wai.Middleware.RequestLogger (logStdoutDev)
 import Servant
 
 conStringDev = "host=localhost port=5432 user=turban dbname=news_db password=1781"
@@ -39,7 +40,7 @@ imageSizeDev :: Int64
 imageSizeDev = 20971520
 
 runDev :: forall api. HasServer api '[BasicAuthCheck User] => Proxy api -> Server api -> IO ()
-runDev api server = run 3000 (serveWithContext api ctx server)
+runDev api server = run 3000 (logStdoutDev . serveWithContext api ctx $ server)
   where
     ctx = checkBasicAuth runDBDev :. EmptyContext
 
@@ -49,7 +50,7 @@ runDBDev x = liftIO . runStderrLoggingT $
   withPostgresqlPool conStringDev 1 $ \pool -> liftSqlPersistMPool x pool
 
 userIsAdmin_ :: User -> Handler ()
-userIsAdmin_ User {..} = unless userIsAdmin $ throwError err404
+userIsAdmin_ User {..} = unless userIsAdmin $ throwError err402
 
 createUser ::
   String -> -- login

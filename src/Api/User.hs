@@ -10,16 +10,18 @@
 module Api.User where
 
 import Api.Pagination
+import Control.Applicative ((<|>))
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
 import DB.Scheme
 import Data.Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Char (toLower)
+import Data.Maybe (isJust)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import Database.Esqueleto.Experimental hiding (get)
-import Database.Persist (PersistStoreWrite (insert), PersistUniqueRead (getBy))
+import qualified Database.Persist as P
 import Dev (createUser, imageRootDev, runDBDev, userIsAdmin_)
 import Servant
 import Servant.Multipart
@@ -28,13 +30,13 @@ import Utils (saveInsertToDbImages, validateImages)
 type UserApi =
   BasicAuth "admin" User :> "create" :> MultipartForm Mem (MultipartData Mem) :> Put '[JSON] UserId
     :<|> BasicAuth "admin" User :> "to_author" :> QueryParam' '[Required] "username" String :> PostNoContent
-    :<|> QueryParam "offset" Int :> QueryParam "limit" Int :> Get '[JSON] (WithOffset [Entity User])
+    :<|> GetWithPagination '[JSON] (Entity User)
 
 userApi :: Proxy UserApi
 userApi = Proxy
 
 userServer :: Server UserApi
-userServer = create :<|> toAuthor :<|> get
+userServer = create :<|> toAuthor :<|> getU
 
 data IncomingUser = IncomingUser {name :: String, password :: String, isAdmin_ :: Bool, isAuthor_ :: Bool}
 
@@ -52,23 +54,24 @@ instance FromJSON IncomingUser where
 
 instance FromMultipart Mem IncomingUser where
   fromMultipart form = case decode . LBS.fromStrict . encodeUtf8 <$> lookupInput "user" form of
-    Left e ->
-      IncomingUser
-        <$> (T.unpack <$> lookupInput "name" form)
-        <*> (T.unpack <$> lookupInput "password" form)
-        <*> withDef (readBool . lookupInput "is_admin" $ form) False
-        <*> withDef (readBool . lookupInput "is_author" $ form) False
-    Right Nothing -> Left "Bad json user data."
+    Left e -> parseIncUserMultipart
+    Right Nothing -> parseIncUserMultipart <|> Left "Bad json user data."
     Right (Just u) -> Right u
     where
-      readBool :: Either String T.Text -> Either String Bool
-      readBool (Left e) = Left e
+      parseIncUserMultipart =
+        IncomingUser
+          <$> (T.unpack <$> lookupInput "name" form)
+          <*> (T.unpack <$> lookupInput "password" form)
+          <*> withDef (readBool . lookupInput "is_admin" $ form) False
+          <*> withDef (readBool . lookupInput "is_author" $ form) False
+      readBool :: Either String T.Text -> Maybe Bool
+      readBool (Left e) = Nothing
       readBool (Right b)
-        | T.map toLower b == "true" = Right True
-        | T.map toLower b == "false" = Right False
-        | otherwise = Left "is_admin and is_author must be bool"
-      withDef (Right x) _ = Right x
-      withDef (Left _) def = Right def
+        | T.map toLower b == "true" = Just True
+        | T.map toLower b == "false" = Just False
+        | otherwise = Nothing
+      withDef (Just x) _ = Right x
+      withDef Nothing def = Right def
 
 create :: User -> MultipartData Mem -> Handler UserId
 create admin form = do
@@ -88,22 +91,18 @@ create admin form = do
       runDBDev $ insert dbU
 
 isUserExists :: String -> Handler Bool
-isUserExists name = (runDBDev . getBy $ UniqueUserName name) >>= maybe (return False) (\_ -> return True)
+isUserExists name = isJust <$> (runDBDev . getBy $ UniqueUserName name)
 
 toAuthor :: User -> String -> Handler NoContent
 toAuthor u name = do
   userIsAdmin_ u
   exists_ <- isUserExists name
   when (not exists_) (throwError err400 {errReasonPhrase = "No such user."})
-  runDBDev $
-    update $ \u -> do
-      set u [UserIsAuthor =. val True]
-      where_ $ u ^. UserName ==. val name
+  runDBDev $ P.updateWhere [UserName P.==. name] [UserIsAuthor P.=. True]
   return NoContent
 
-get :: Maybe Int -> Maybe Int -> Handler (WithOffset [Entity User])
-get off lim = do
-  offsetLimValid lim off
+getU :: Maybe Limit -> Maybe Offset -> Handler (WithOffset [Entity User])
+getU lim off = do
   usrs <- runDBDev
     . select
     $ do
