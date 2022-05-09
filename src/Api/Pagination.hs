@@ -11,21 +11,23 @@
 
 module Api.Pagination
   ( GetWithPagination,
-    addPagination,
-    newOffset,
+    selectPagination,
     Offset,
     Limit,
-    WithOffset (..),
+    WithOffset,
   )
 where
 
 import Control.Monad (when)
+import Control.Monad.IO.Class (MonadIO)
 import Data.Aeson (ToJSON (toJSON))
+import Data.Data (Typeable)
 import Data.Maybe (fromMaybe)
-import Database.Esqueleto.Experimental as D
+import Database.Esqueleto.Experimental as E
 import Dev
 import GHC.Generics (Generic)
 import Servant
+import Servant.API.Modifiers (RequiredArgument)
 import Servant.Server.Internal.ErrorFormatter (MkContextWithErrorFormatter)
 
 type GetWithPagination (t :: [*]) a = QueryParam "limit" Limit :> QueryParam "offset" Offset :> Get t (WithOffset [a])
@@ -49,17 +51,24 @@ instance FromHttpApiData Limit where
 data WithOffset a = WithOffset {offset :: Offset, content :: a}
   deriving (Generic, Show, ToJSON)
 
-addPagination :: Maybe Limit -> Maybe Offset -> SqlQuery a -> SqlQuery a
-addPagination lim off q =
-  q >>= \r ->
-    maybe (pure ()) (D.offset . fromIntegral . unOffset) off
-      >> ( limit . fromIntegral $
-             maybe
-               limitDev
-               (\x -> if unLimit x > limitDev then limitDev else unLimit x)
-               lim
-         )
-      >> pure r
+selectPagination ::
+  (MonadIO m, PersistEntity a) =>
+  Maybe Limit ->
+  Maybe Offset ->
+  SqlQuery (SqlExpr (Entity a)) ->
+  SqlPersistT m (WithOffset [Entity a])
+selectPagination lim off q =
+  WithOffset (newOffset lim off)
+    <$> ( select $ do
+            r <- q
+            maybe (pure ()) (E.offset . fromIntegral . unOffset) off
+            E.limit . fromIntegral $
+              maybe
+                limitDev
+                (\x -> if unLimit x > limitDev then limitDev else unLimit x)
+                lim
+            pure r
+        )
 
 newOffset :: Maybe Limit -> Maybe Offset -> Offset
 newOffset lim off = Offset $ maybe 0 unOffset off + maybe limitDev unLimit lim + 1

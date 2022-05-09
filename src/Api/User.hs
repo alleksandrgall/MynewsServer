@@ -103,9 +103,7 @@ toAuthor u name = do
 
 getU :: Maybe Limit -> Maybe Offset -> Handler (WithOffset [Entity User])
 getU lim off = do
-  usrs <- runDBDev
-    . select
+  runDBDev
+    . selectPagination lim off
     $ do
-      user <- from $ table @User
-      addPagination lim off (pure user)
-  return $ WithOffset (newOffset lim off) usrs
+      from $ table @User

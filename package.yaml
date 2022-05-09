@@ -31,9 +31,11 @@ dependencies:
 - bytestring
 - persistent-postgresql
 - persistent-template
+- configurator
 # postgresql-simple brings in the scope SqlError which is used for exception handling
 - postgresql-simple
 - monad-logger
+- katip
 - wai-extra
 - aeson
 - text
@@ -42,7 +44,6 @@ dependencies:
 - mtl
 - directory
 - exceptions
-- unliftio-core
 
 library:
   source-dirs: src

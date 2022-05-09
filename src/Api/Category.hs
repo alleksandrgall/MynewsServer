@@ -111,9 +111,7 @@ alter u trgId name parentId = do
 
 getC :: Maybe Limit -> Maybe Offset -> Handler (WithOffset [Entity Category])
 getC lim off = do
-  cs <- runDBDev
-    . select
+  runDBDev
+    . selectPagination lim off
     $ do
-      c <- from $ table @Category
-      addPagination lim off (pure c)
-  return $ WithOffset (newOffset lim off) cs
+      from $ table @Category

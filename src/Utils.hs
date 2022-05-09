@@ -1,6 +1,5 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# LANGUAGE OverloadedStrings #-}
 
-{-# HLINT ignore "Use newtype instead of data" #-}
 module Utils
   ( validateImages,
     saveInsertToDbImages,
@@ -10,8 +9,8 @@ where
 import Control.Exception (onException)
 import Control.Monad (foldM, void, when)
 import Control.Monad.Except (throwError)
-import Control.Monad.IO.Class (liftIO)
-import DB.Scheme (EntityField (ImageMime, ImagePath), Image (Image), ImageId, Key (unImageKey))
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import DB.Scheme (EntityField (ImageMime, ImagePath), Image (Image, imagePath), ImageId, Key (unImageKey))
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as T
 import Data.Time (UTCTime (utctDay), getCurrentTime, toGregorian)
@@ -22,37 +21,7 @@ import Servant
 import Servant.Multipart
 import System.Directory (createDirectoryIfMissing, removeFile)
 
-data Valid = Valid [FileData Mem]
-
-saveInsertToDbImages :: Valid -> String -> (ImageId -> SqlPersistM ()) -> IO [ImageId]
-saveInsertToDbImages (Valid fds) imageRootDev inserter = do
-  (year, month', day') <- toGregorian . utctDay <$> getCurrentTime
-  let trg = imageRootDev ++ "/" ++ show year ++ "/" ++ show month' ++ "/" ++ show day'
-  createDirectoryIfMissing True trg
-  let insertDB =
-        foldM
-          ( \prev fd -> do
-              imId <-
-                P.insert tempImage >>= \imId ->
-                  P.update
-                    imId
-                    [ImagePath P.=. makeFName trg imId fd, ImageMime P.=. (T.unpack . fdFileCType $ fd)]
-                    >> return imId
-              inserter imId
-              return ((imId, makeFName trg imId fd, fdPayload fd) : prev)
-          )
-          []
-          fds
-  runDBDev $ do
-    fls <- insertDB
-    liftIO $ onException (mapM (\(_, fp, bs) -> LBS.writeFile fp bs) fls) (mapM (\(_, fp, _) -> removeFile fp) fls)
-    return $ map (\(imId, _, _) -> imId) fls
-
-makeFName :: FilePath -> Key Image -> FileData tag -> FilePath
-makeFName trg i fd = trg ++ "/" ++ "image" ++ (show . unSqlBackendKey . unImageKey $ i) ++ dropWhile (/= '.') (T.unpack . fdFileName $ fd)
-
-tempImage :: Image
-tempImage = Image "" ""
+newtype Valid = Valid [FileData Mem]
 
 validateImages :: [FileData Mem] -> Handler Valid
 validateImages fds = do
@@ -64,3 +33,31 @@ validateImages fds = do
     )
     fds --file too large
   return $ Valid fds
+
+saveInsertToDbImages :: Valid -> String -> (ImageId -> SqlPersistM ()) -> IO [ImageId]
+saveInsertToDbImages (Valid fds) imageRootDev inserter = do
+  (year, month', day') <- toGregorian . utctDay <$> getCurrentTime
+  let trg = imageRootDev ++ "/" ++ show year ++ "/" ++ show month' ++ "/" ++ show day'
+  createDirectoryIfMissing True trg
+  let insertDB =
+        foldM
+          ( \prev fd -> do
+              [im] <- rawSqlInsertFileWithId trg fd
+              inserter (entityKey im)
+              return ((entityKey im, imagePath . entityVal $ im, fdPayload fd) : prev)
+          )
+          []
+          fds
+  runDBDev $ do
+    fls <- insertDB
+    liftIO $ onException (mapM (\(_, fp, bs) -> LBS.writeFile fp bs) fls) (mapM (\(_, fp, _) -> removeFile fp) fls)
+    return $ map (\(imId, _, _) -> imId) fls
+
+rawSqlInsertFileWithId :: (MonadIO m) => FilePath -> FileData Mem -> SqlPersistT m [Entity Image]
+rawSqlInsertFileWithId root fd =
+  P.rawSql
+    " INSERT INTO image (path, mime) VALUES (? || currval('image_image_id_seq')|| ?, ?) RETURNING "
+    [ P.PersistText $ T.pack root <> "/" <> "image",
+      P.PersistText $ T.dropWhile (/= '.') (fdFileName fd),
+      P.PersistText $ fdFileCType fd
+    ]
