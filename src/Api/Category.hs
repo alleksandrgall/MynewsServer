@@ -13,7 +13,9 @@
 
 module Api.Category where
 
+import Api.Auth
 import Api.Pagination
+import App
 import Control.Exception (Exception, SomeException (SomeException))
 import Control.Monad (when)
 import Control.Monad.Catch hiding (Handler)
@@ -29,12 +31,12 @@ import Servant
 import SqlException (SqlException (NotExists))
 
 type CategoryApi =
-  BasicAuth "admin" User
+  BasicAuth "admin" (Entity User)
     :> ( "create" :> QueryParam' [Required, Strict] "name" String
            :> QueryParam' [Required, Strict] "parent" Parent
            :> Put '[JSON] CategoryId
        )
-    :<|> BasicAuth "admin" User
+    :<|> BasicAuth "admin" (Entity User)
     :> ( "alter" :> Capture "category_id" CategoryId
            :> QueryParam "name" String
            :> QueryParam "parent" Parent
@@ -45,7 +47,7 @@ type CategoryApi =
 categoryApi :: Proxy CategoryApi
 categoryApi = Proxy
 
-categoryServer :: Server CategoryApi
+categoryServer :: ServerT CategoryApi App
 categoryServer = create :<|> alter :<|> getC
 
 newtype Parent = Parent {unParent :: Maybe CategoryId}
@@ -67,7 +69,7 @@ setsMaybe [] = []
 setsMaybe (MaybeSetter (_, Nothing) : fvs) = setsMaybe fvs
 setsMaybe (MaybeSetter (f, Just v) : fvs) = (f P.=. v) : setsMaybe fvs
 
-isUniqueSibling :: String -> Parent -> Handler Bool
+isUniqueSibling :: String -> Parent -> App Bool
 isUniqueSibling name parentId =
   runDBDev $
     null
@@ -82,7 +84,7 @@ categoryDBHandler e = case fromException e of
   Just NotExists -> throwError err400 {errReasonPhrase = "Given parent category doesn't exist."}
   _ -> throwM e
 
-create :: User -> String -> Parent -> Handler CategoryId
+create :: Entity User -> String -> Parent -> App CategoryId
 create u name parentId = do
   userIsAdmin_ u
   isUniqueSibling name parentId >>= \f ->
@@ -92,7 +94,7 @@ create u name parentId = do
 
   runDBDev (insert $ Category name (unParent parentId)) `catch` categoryDBHandler
 
-alter :: User -> CategoryId -> Maybe String -> Maybe Parent -> Handler NoContent
+alter :: Entity User -> CategoryId -> Maybe String -> Maybe Parent -> App NoContent
 alter u trgId name parentId = do
   userIsAdmin_ u
   when (allNothing [QParam name, QParam parentId]) $
@@ -101,15 +103,13 @@ alter u trgId name parentId = do
   let isSelfParent = maybe False ((Just trgId ==) . unParent) parentId
   when isSelfParent $ throwError err400 {errReasonPhrase = "Category is a parent of itself."}
   isUniqueSibling (fromMaybe (categoryName oldCateg) name) (fromMaybe (Parent $ categoryParent oldCateg) parentId) >>= \f ->
-    when
-      (not f)
-      $ throwError err400 {errReasonPhrase = "Already have a category with the same \"name\" and \"parent\"."}
+    when (not f) $ throwError err400 {errReasonPhrase = "Already have a category with the same \"name\" and \"parent\"."}
 
   (runDBDev . P.update trgId $ setsMaybe [MaybeSetter (CategoryName, name), MaybeSetter (CategoryParent, unParent <$> parentId)])
     `catch` categoryDBHandler
   return NoContent
 
-getC :: Maybe Limit -> Maybe Offset -> Handler (WithOffset [Entity Category])
+getC :: Maybe Limit -> Maybe Offset -> App (WithOffset [Entity Category])
 getC lim off = do
   runDBDev
     . selectPagination lim off

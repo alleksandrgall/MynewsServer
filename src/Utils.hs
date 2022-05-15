@@ -6,6 +6,7 @@ module Utils
   )
 where
 
+import App
 import Control.Exception (onException)
 import Control.Monad (foldM, void, when)
 import Control.Monad.Except (throwError)
@@ -23,15 +24,17 @@ import System.Directory (createDirectoryIfMissing, removeFile)
 
 newtype Valid = Valid [FileData Mem]
 
-validateImages :: [FileData Mem] -> Handler Valid
+validateImages :: [FileData Mem] -> App Valid
 validateImages fds = do
-  when (length fds > maxFilesDev) (throwError err413 {errReasonPhrase = "Too many files, max file num is " ++ show maxFilesDev})
+  maxFiles <- askMaxImagesUpload
+  when (length fds > maxFiles) (throwError err413 {errReasonPhrase = "Too many files, max file num is " ++ show maxFiles}) --too many files
+  maxFileSize <- askMaxImageSize
   mapM_
     ( \fd ->
-        when (T.takeWhile (/= '/') (fdFileCType fd) /= "image") (throwError err415)
-          >> when (LBS.length (fdPayload fd) > imageSizeDev) (throwError err413) --not an image
+        when (T.takeWhile (/= '/') (fdFileCType fd) /= "image") (throwError err415) --not an image
+          >> when (LBS.length (fdPayload fd) > maxFileSize) (throwError err413) --file too large
     )
-    fds --file too large
+    fds
   return $ Valid fds
 
 saveInsertToDbImages :: Valid -> String -> (ImageId -> SqlPersistM ()) -> IO [ImageId]

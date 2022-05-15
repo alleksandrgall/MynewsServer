@@ -8,6 +8,7 @@ module Main where
 import Api.Article (parseListToNest)
 import Api.Category
 import Api.User
+import App (withAppConfig)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import DB.Queries (queryNestCategoryById)
 import DB.Scheme (Category, Key (CategoryKey))
@@ -24,13 +25,13 @@ type Api =
   "user" :> UserApi
     :<|> "category" :> CategoryApi
 
-type TestApi = "test_insert" :> MultipartForm Mem (MultipartData Mem) :> Put '[JSON] Text
+-- type TestApi = "test_insert" :> MultipartForm Mem (MultipartData Mem) :> Put '[JSON] Text
 
-testServer :: Server TestApi
-testServer form = do
-  v <- validateImages (files form)
-  id <- liftIO $ saveInsertToDbImages v "/home/turban/metaLampServer/images" (const (return ()))
-  return $ pack . show $ id
+-- testServer :: Server TestApi
+-- testServer form = do
+--   v <- validateImages (files form)
+--   id <- liftIO $ saveInsertToDbImages v "/home/turban/metaLampServer/images" (const (return ()))
+--   return $ pack . show $ id
 
 main :: IO ()
-main = runDev (Proxy :: Proxy TestApi) testServer
+main = undefined -- withAppConfig (\c -> runDev (Proxy :: Proxy Api)

@@ -1,5 +1,6 @@
 {-# HLINT ignore "Use unless" #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -9,7 +10,9 @@
 
 module Api.User where
 
+import Api.Auth
 import Api.Pagination
+import App
 import Control.Applicative ((<|>))
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
@@ -22,78 +25,66 @@ import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import Database.Esqueleto.Experimental hiding (get)
 import qualified Database.Persist as P
-import Dev (createUser, imageRootDev, runDBDev, userIsAdmin_)
+import Dev (createUser, runDBDev)
+import GHC.Generics (Generic)
 import Servant
 import Servant.Multipart
+import qualified Text.Read as T
 import Utils (saveInsertToDbImages, validateImages)
 
 type UserApi =
-  BasicAuth "admin" User :> "create" :> MultipartForm Mem (MultipartData Mem) :> Put '[JSON] UserId
-    :<|> BasicAuth "admin" User :> "to_author" :> QueryParam' '[Required] "username" String :> PostNoContent
+  BasicAuth "admin" (Entity User) :> "create" :> MultipartForm Mem (MultipartData Mem) :> Put '[JSON] UserId
+    :<|> BasicAuth "admin" (Entity User) :> "to_author" :> QueryParam' '[Required] "username" String :> PostNoContent
     :<|> GetWithPagination '[JSON] (Entity User)
 
 userApi :: Proxy UserApi
 userApi = Proxy
 
-userServer :: Server UserApi
+userServer :: ServerT UserApi App
 userServer = create :<|> toAuthor :<|> getU
 
-data IncomingUser = IncomingUser {name :: String, password :: String, isAdmin_ :: Bool, isAuthor_ :: Bool}
+data IncomingUser = IncomingUser {incomingName :: String, incomingPassword :: String, incomingIsAdmin :: Bool, incomingIsAuthor :: Bool}
+  deriving (Show, Generic)
 
 incUserToDbUser :: IncomingUser -> Maybe ImageId -> IO User
-incUserToDbUser IncomingUser {..} imId = createUser name password imId isAdmin_ isAuthor_
+incUserToDbUser IncomingUser {..} imId = createUser incomingName incomingPassword imId incomingIsAdmin incomingIsAuthor
 
 instance FromJSON IncomingUser where
-  parseJSON (Object o) =
-    IncomingUser
-      <$> o .: "name"
-      <*> o .: "password"
-      <*> o .:? "is_admin" .!= False
-      <*> o .:? "is_author" .!= False
-  parseJSON _ = mempty
+  parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_' . drop 8}
 
 instance FromMultipart Mem IncomingUser where
-  fromMultipart form = case decode . LBS.fromStrict . encodeUtf8 <$> lookupInput "user" form of
-    Left e -> parseIncUserMultipart
-    Right Nothing -> parseIncUserMultipart <|> Left "Bad json user data."
-    Right (Just u) -> Right u
+  fromMultipart form = parseMultipart <|> (lookupInput "user" form >>= eitherDecode . LBS.fromStrict . encodeUtf8)
     where
-      parseIncUserMultipart =
-        IncomingUser
-          <$> (T.unpack <$> lookupInput "name" form)
+      parseMultipart =
+        IncomingUser <$> (T.unpack <$> lookupInput "name" form)
           <*> (T.unpack <$> lookupInput "password" form)
-          <*> withDef (readBool . lookupInput "is_admin" $ form) False
-          <*> withDef (readBool . lookupInput "is_author" $ form) False
-      readBool :: Either String T.Text -> Maybe Bool
-      readBool (Left e) = Nothing
-      readBool (Right b)
-        | T.map toLower b == "true" = Just True
-        | T.map toLower b == "false" = Just False
-        | otherwise = Nothing
-      withDef (Just x) _ = Right x
-      withDef Nothing def = Right def
+          <*> withDef (lookupInput "is_admin" form >>= T.readEither . T.unpack) False
+          <*> withDef (lookupInput "is_author" form >>= T.readEither . T.unpack) False
+      withDef (Right x) _ = Right x
+      withDef _ def = Right def
 
-create :: User -> MultipartData Mem -> Handler UserId
+create :: Entity User -> MultipartData Mem -> App UserId
 create admin form = do
   userIsAdmin_ admin
   case fromMultipart form of
     Left e -> throwError err400 {errReasonPhrase = e}
     Right incUser -> do
-      exists_ <- isUserExists (name incUser)
+      exists_ <- isUserExists (incomingName incUser)
       when exists_ (throwError err400 {errReasonPhrase = "Username is already taken."})
       maybeAvId <- case lookupFile "avatar" form of
         Left _ -> return Nothing
         Right fd -> do
           v <- validateImages [fd]
-          avIds <- liftIO $ saveInsertToDbImages v imageRootDev (const $ return ())
+          imageRoot <- askImageRoot
+          avIds <- liftIO $ saveInsertToDbImages v imageRoot (const $ return ())
           return (Just . head $ avIds)
       dbU <- liftIO $ incUserToDbUser incUser maybeAvId
       runDBDev $ insert dbU
 
-isUserExists :: String -> Handler Bool
+isUserExists :: String -> App Bool
 isUserExists name = isJust <$> (runDBDev . getBy $ UniqueUserName name)
 
-toAuthor :: User -> String -> Handler NoContent
+toAuthor :: Entity User -> String -> App NoContent
 toAuthor u name = do
   userIsAdmin_ u
   exists_ <- isUserExists name
@@ -101,7 +92,7 @@ toAuthor u name = do
   runDBDev $ P.updateWhere [UserName P.==. name] [UserIsAuthor P.=. True]
   return NoContent
 
-getU :: Maybe Limit -> Maybe Offset -> Handler (WithOffset [Entity User])
+getU :: Maybe Limit -> Maybe Offset -> App (WithOffset [Entity User])
 getU lim off = do
   runDBDev
     . selectPagination lim off

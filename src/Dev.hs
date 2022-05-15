@@ -6,7 +6,6 @@
 
 module Dev where
 
-import Auth
 import Control.Monad (unless, when)
 import Control.Monad.Logger (runStderrLoggingT)
 import Control.Monad.Reader (MonadIO (liftIO))
@@ -39,18 +38,10 @@ imageRootDev = "/home/turban/metaLampServer/images"
 imageSizeDev :: Int64
 imageSizeDev = 20971520
 
-runDev :: forall api. HasServer api '[BasicAuthCheck User] => Proxy api -> Server api -> IO ()
-runDev api server = run 3000 (logStdoutDev . serveWithContext api ctx $ server)
-  where
-    ctx = checkBasicAuth runDBDev :. EmptyContext
-
 runDBDev ::
   (MonadIO m) => SqlPersistM a -> m a
 runDBDev x = liftIO . runStderrLoggingT $
   withPostgresqlPool conStringDev 1 $ \pool -> liftSqlPersistMPool x pool
-
-userIsAdmin_ :: User -> Handler ()
-userIsAdmin_ User {..} = unless userIsAdmin $ throwError err402
 
 createUser ::
   String -> -- login
