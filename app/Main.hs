@@ -5,33 +5,27 @@
 
 module Main where
 
-import Api.Article (parseListToNest)
+import Api.Article
 import Api.Category
 import Api.User
-import App (withAppConfig)
-import Control.Monad.IO.Class (MonadIO (liftIO))
-import DB.Queries (queryNestCategoryById)
-import DB.Scheme (Category, Key (CategoryKey))
-import Data.Aeson (encode)
-import qualified Data.ByteString.Lazy.Char8 as BS
-import Data.Text (Text, pack)
-import Database.Esqueleto.Experimental
+import App
+import App.KatipMiddleware
+import DB.Scheme
+import Database.Persist.Sql (runMigration)
 import Dev
+import Katip (Severity (InfoS))
+import Network.Wai.Handler.Warp
 import Servant
-import Servant.Multipart
-import Utils
 
 type Api =
   "user" :> UserApi
     :<|> "category" :> CategoryApi
+    :<|> "article" :> ArticleApi
 
--- type TestApi = "test_insert" :> MultipartForm Mem (MultipartData Mem) :> Put '[JSON] Text
-
--- testServer :: Server TestApi
--- testServer form = do
---   v <- validateImages (files form)
---   id <- liftIO $ saveInsertToDbImages v "/home/turban/metaLampServer/images" (const (return ()))
---   return $ pack . show $ id
+app = userServer :<|> categoryServer :<|> articleServer
 
 main :: IO ()
-main = undefined -- withAppConfig (\c -> runDev (Proxy :: Proxy Api)
+main = withAppConfig (\config -> run 3000 . katipMiddleware (logConfig config) InfoS . serveApp (Proxy :: Proxy Api) app $ config)
+
+-- runDBDev $ runMigration migrateAll
+-- withAppConfig (\config -> )run 3000 . katipMiddleware (logConfig config) InfoS . serveApp (Proxy :: Proxy Api) app $ config

@@ -3,36 +3,35 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use newtype instead of data" #-}
 
 module App where
 
 import Auth (checkBasicAuth)
 import Control.Concurrent (killThread)
-import Control.Exception (Exception (fromException), bracket, throwIO)
-import Control.Monad.Catch (MonadCatch, MonadThrow)
-import Control.Monad.Except (ExceptT, MonadError)
-import Control.Monad.Logger
+import Control.Exception (throwIO)
+import Control.Monad.Catch hiding (Handler, onError)
+import Control.Monad.Except
+import Control.Monad.Logger (NoLoggingT (runNoLoggingT))
 import Control.Monad.Reader
-import DB.Scheme (User)
+import DB.Scheme (User (User))
 import Data.Char (toLower)
 import Data.Configurator as C
-import Data.Configurator.Types (Config, Configured (convert), Value (List, String), onError)
-import Data.Data (Proxy (Proxy))
-import Data.Int (Int64)
-import Data.Monoid hiding (mempty)
-import qualified Data.Text as T (map)
+import Data.Configurator.Types
+import Data.Int
+import Data.String (IsString (fromString))
+import qualified Data.Text as T
 import Data.Text.Lazy.Builder (toLazyText)
 import qualified Data.Text.Lazy.IO as T
-import Database.Persist (Entity)
-import Dev (runDBDev)
+import Database.Persist
+import Database.Persist.Postgresql (SqlPersistM, liftSqlPersistMPool, withPostgresqlPool)
 import Katip
-import Network.Wai
-import Servant (BasicAuth, Handler, ServerError)
-import Servant.Server
+import Servant
 import System.Environment (getArgs)
-import System.IO (BufferMode (LineBuffering), IOMode (WriteMode), hSetBuffering, stderr, stdout)
+import System.IO (BufferMode (LineBuffering), hSetBuffering, stderr, stdout)
 
 newtype AppT m a = AppT {unApp :: ReaderT AppConfig (ExceptT ServerError m) a}
   deriving
@@ -113,23 +112,12 @@ askMaxImagesUpload = do
   conf <- asks generalConfig
   liftIO . C.lookupDefault 30 conf $ "maxImagesUpload"
 
-logLevelToSeverity :: LogLevel -> Severity
-logLevelToSeverity LevelDebug = DebugS
-logLevelToSeverity LevelInfo = InfoS
-logLevelToSeverity LevelWarn = WarningS
-logLevelToSeverity LevelError = ErrorS
-logLevelToSeverity (LevelOther _) = NoticeS
+runDB :: (MonadIO m) => SqlPersistM a -> AppT m a
+runDB x = getConStr >>= \s -> actuallyRunDb s x
 
-instance Configured LogLevel where
-  convert (String s) =
-    case T.map toLower s of
-      "debug" -> Just LevelDebug
-      "info" -> Just LevelInfo
-      "warn" -> Just LevelWarn
-      "error" -> Just LevelError
-      "notice" -> Just $ LevelOther ""
-      _ -> Nothing
-  convert _ = Nothing
+actuallyRunDb :: (MonadIO m) => String -> SqlPersistM a -> m a
+actuallyRunDb conStr x = liftIO . runNoLoggingT $
+  withPostgresqlPool (fromString conStr) 1 $ \pool -> liftSqlPersistMPool x pool
 
 instance Configured Severity where
   convert (String s) =
@@ -168,7 +156,7 @@ mkScribeFromConfig cnf = return $ Scribe write finale permit
   where
     write :: forall a. LogItem a => Item a -> IO ()
     write i = do
-      out <- C.lookupDefault Stdout cnf "logLevel"
+      out <- C.lookupDefault Stdout cnf "logOut"
       verb <- C.lookupDefault V2 cnf "logVerb"
       case out of
         Silent -> return ()
@@ -195,17 +183,17 @@ instance (MonadIO m) => KatipContext (AppT m) where
   getKatipNamespace = asks (logNamespace . logConfig)
   localKatipNamespace f (AppT m) = AppT (local (\s -> s {logConfig = (logConfig s) {logNamespace = f . logNamespace . logConfig $ s}}) m)
 
--- Maybe later will implement with katip, write now seems sus
--- katipMiddleware :: AppConfig -> Middleware
--- katipMiddleware AppConfig {..} app = \req respond ->
-
 convertApp :: AppConfig -> App a -> Handler a
 convertApp c (AppT a) = Handler $ runReaderT a c
 
 toServer :: HasServer api '[BasicAuthCheck (Entity User)] => Proxy api -> AppConfig -> ServerT api App -> Server api
 toServer api conf = hoistServerWithContext api (Proxy :: Proxy '[BasicAuthCheck (Entity User)]) (convertApp conf)
 
-toApp :: HasServer api '[BasicAuthCheck (Entity User)] => Proxy api -> ServerT api App -> AppConfig -> Application
-toApp api appServer conf = serveWithContext api ctx (toServer api conf appServer)
+serveApp :: HasServer api '[BasicAuthCheck (Entity User)] => Proxy api -> ServerT api App -> AppConfig -> Application
+serveApp api appServer conf = serveWithContext api ctx (toServer api conf appServer)
   where
-    ctx = checkBasicAuth runDBDev :. EmptyContext
+    ctx = checkBasicAuth dbRunner :. EmptyContext
+    dbRunner :: forall a. SqlPersistM a -> IO a
+    dbRunner = \query -> flip runReaderT conf $ do
+      conStr <- getConStr
+      liftIO $ actuallyRunDb conStr query

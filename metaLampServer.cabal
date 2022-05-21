@@ -25,21 +25,22 @@ source-repository head
 
 library
   exposed-modules:
-      Api
       Api.Article
-      Api.Auth
+      Api.Article.Filters
+      Api.Article.Get
       Api.Category
-      Api.Pagination
+      Api.Internal.Auth
+      Api.Internal.ImageManager
+      Api.Internal.Optional
+      Api.Internal.Pagination
       Api.User
       App
+      App.KatipMiddleware
       Auth
       DB.Queries
       DB.Scheme
-      DB.Types.Internal
       Dev
-      Logger
       SqlException
-      Utils
   other-modules:
       Paths_metaLampServer
   hs-source-dirs:
@@ -56,6 +57,7 @@ library
     , directory
     , esqueleto
     , exceptions
+    , http-types
     , katip
     , monad-logger
     , mtl
@@ -90,6 +92,7 @@ executable metaLampServer-exe
     , directory
     , esqueleto
     , exceptions
+    , http-types
     , katip
     , metaLampServer
     , monad-logger
@@ -126,6 +129,7 @@ test-suite metaLampServer-test
     , directory
     , esqueleto
     , exceptions
+    , http-types
     , katip
     , metaLampServer
     , monad-logger

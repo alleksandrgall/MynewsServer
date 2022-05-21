@@ -26,6 +26,7 @@ dependencies:
 - servant-server
 - warp
 - wai
+- http-types
 - esqueleto
 - persistent
 - time

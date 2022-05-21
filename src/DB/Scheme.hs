@@ -43,7 +43,7 @@ User
     UniqueUserName name
     avatar ImageId Maybe
     passwordHash BS.ByteString
-    created UTCTime default=CURRENT_DATE
+    created Day default=CURRENT_DATE
     isAdmin Bool
     isAuthor Bool
 Category
@@ -54,6 +54,7 @@ Category
 Article
     Id          sql=article_id
     title String sqltype=varchar(255)
+    created Day default=CURRENT_DATE
     userId UserId
     categoryId CategoryId
     content String
@@ -64,8 +65,8 @@ Image
     path String
 ImageArticle
     Id sql=image_article_id
-    articleId ArticleId
-    imageId ImageId
+    articleId ArticleId OnDeleteCascade
+    imageId ImageId OnDeleteCascade
 |]
 
 instance ToJSON User where

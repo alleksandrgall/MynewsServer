@@ -1,4 +1,3 @@
-{-# HLINT ignore "Use unless" #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -6,31 +5,33 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Api.User where
 
-import Api.Auth
-import Api.Pagination
+import Api.Internal.Auth
+import Api.Internal.ImageManager
+import Api.Internal.Pagination
 import App
 import Control.Applicative ((<|>))
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import Control.Monad.IO.Class (liftIO)
+import Crypto.KDF.BCrypt (hashPassword)
 import DB.Scheme
 import Data.Aeson
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Char (toLower)
 import Data.Maybe (isJust)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
+import Data.Time (UTCTime (utctDay), getCurrentTime)
 import Database.Esqueleto.Experimental hiding (get)
 import qualified Database.Persist as P
-import Dev (createUser, runDBDev)
 import GHC.Generics (Generic)
+import Katip (Severity (InfoS), katipAddContext, logFM)
 import Servant
 import Servant.Multipart
 import qualified Text.Read as T
-import Utils (saveInsertToDbImages, validateImages)
 
 type UserApi =
   BasicAuth "admin" (Entity User) :> "create" :> MultipartForm Mem (MultipartData Mem) :> Put '[JSON] UserId
@@ -47,7 +48,18 @@ data IncomingUser = IncomingUser {incomingName :: String, incomingPassword :: St
   deriving (Show, Generic)
 
 incUserToDbUser :: IncomingUser -> Maybe ImageId -> IO User
-incUserToDbUser IncomingUser {..} imId = createUser incomingName incomingPassword imId incomingIsAdmin incomingIsAuthor
+incUserToDbUser IncomingUser {..} imId = do
+  pswdH <- (hashPassword 6 $ encodeUtf8 . T.pack $ incomingPassword :: IO BS.ByteString)
+  date <- utctDay <$> getCurrentTime
+  return
+    User
+      { userName = incomingName,
+        userAvatar = imId,
+        userPasswordHash = pswdH,
+        userCreated = date,
+        userIsAdmin = incomingIsAdmin,
+        userIsAuthor = incomingIsAuthor
+      }
 
 instance FromJSON IncomingUser where
   parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_' . drop 8}
@@ -65,6 +77,7 @@ instance FromMultipart Mem IncomingUser where
 
 create :: Entity User -> MultipartData Mem -> App UserId
 create admin form = do
+  logFM InfoS "Creating a user"
   userIsAdmin_ admin
   case fromMultipart form of
     Left e -> throwError err400 {errReasonPhrase = e}
@@ -74,27 +87,26 @@ create admin form = do
       maybeAvId <- case lookupFile "avatar" form of
         Left _ -> return Nothing
         Right fd -> do
-          v <- validateImages [fd]
-          imageRoot <- askImageRoot
-          avIds <- liftIO $ saveInsertToDbImages v imageRoot (const $ return ())
+          avIds <- saveAndInsertImages [fd] (const $ return ())
           return (Just . head $ avIds)
       dbU <- liftIO $ incUserToDbUser incUser maybeAvId
-      runDBDev $ insert dbU
+      runDB $ insert dbU
 
 isUserExists :: String -> App Bool
-isUserExists name = isJust <$> (runDBDev . getBy $ UniqueUserName name)
+isUserExists name = isJust <$> (runDB . getBy $ UniqueUserName name)
 
 toAuthor :: Entity User -> String -> App NoContent
 toAuthor u name = do
   userIsAdmin_ u
   exists_ <- isUserExists name
-  when (not exists_) (throwError err400 {errReasonPhrase = "No such user."})
-  runDBDev $ P.updateWhere [UserName P.==. name] [UserIsAuthor P.=. True]
+  unless exists_ (throwError err400 {errReasonPhrase = "No such user."})
+  runDB $ P.updateWhere [UserName P.==. name] [UserIsAuthor P.=. True]
   return NoContent
 
-getU :: Maybe Limit -> Maybe Offset -> App (WithOffset [Entity User])
+getU :: Maybe Limit -> Maybe Offset -> App (WithOffset (Entity User))
 getU lim off = do
-  runDBDev
-    . selectPagination lim off
+  maxLimit <- askPaginationLimit
+  runDB
+    . selectPagination lim off maxLimit
     $ do
       from $ table @User
