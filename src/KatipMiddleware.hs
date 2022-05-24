@@ -2,7 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module App.KatipMiddleware
+module KatipMiddleware
   ( katipMiddleware,
   )
 where

@@ -36,6 +36,7 @@ data FormatArticle = FormatArticle
     iArticleCreated :: Day,
     iArticleUser :: P.Entity User,
     iArticleCategory :: NestCategory,
+    iArticleIsPublished :: Bool,
     iArticleContent :: String,
     iArticleImages :: [ImageId]
   }
@@ -82,7 +83,7 @@ getFormatArticlesPagination ::
   SqlPersistM (WithOffset FormatArticle)
 getFormatArticlesPagination filters order limit_ maxLimit offset_ = do
   selected <- selectPagination limit_ offset_ maxLimit $ do
-    (art :& us :& cat :& imArt) <-
+    (art :& us :& cat) <-
       from $
         table @Article
           `innerJoin` table @User
@@ -93,14 +94,13 @@ getFormatArticlesPagination filters order limit_ maxLimit offset_ = do
           `on` ( \(art :& _ :& cat) ->
                    art ^. ArticleCategoryId ==. cat ^. CategoryId
                )
-          `innerJoin` table @ImageArticle
-          `on` ( \(art :& _ :& _ :& imArt) ->
-                   art ^. ArticleId ==. imArt ^. ImageArticleArticleId
-               )
+    let countImages = subSelectCount $ do
+          imArt <- from $ table @ImageArticle
+          where_ (imArt ^. ImageArticleArticleId ==. art ^. ArticleId)
+          pure imArt
     groupBy (art ^. ArticleId, us ^. UserId, cat ^. CategoryId)
-    let countRows' = countRows
-    where_ (filters art us cat countRows')
-    orderBy (order art us cat countRows')
+    where_ (filters art us cat countImages &&. art ^. ArticleIsPublished)
+    orderBy (order art us cat countImages)
     pure (art, us, cat)
   mapM toFormatArticle selected
 
@@ -133,6 +133,7 @@ toFormatArticle (art, us, cat) = do
         iArticleCreated = articleCreated . entityVal $ art,
         iArticleUser = us,
         iArticleCategory = parseListToNest categories,
+        iArticleIsPublished = articleIsPublished . entityVal $ art,
         iArticleContent = articleContent . entityVal $ art,
         iArticleImages = images
       }

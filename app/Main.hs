@@ -1,6 +1,5 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Main where
@@ -9,11 +8,11 @@ import Api.Article
 import Api.Category
 import Api.User
 import App
-import App.KatipMiddleware
 import DB.Scheme
 import Database.Persist.Sql (runMigration)
 import Dev
 import Katip (Severity (InfoS))
+import KatipMiddleware
 import Network.Wai.Handler.Warp
 import Servant
 

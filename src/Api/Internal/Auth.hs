@@ -23,7 +23,7 @@ userAtLeastAuthor_ :: Entity User -> App ()
 userAtLeastAuthor_ u =
   katipAddContext (sl "user_id" (entityKey u)) $
     katipAddNamespace "Auth author" $ do
-      $(logTM) InfoS "Checking if user at least author"
+      logFM InfoS "Checking if user at least author"
       unless ((u & entityVal & userIsAuthor) || (u & entityVal & userIsAdmin)) $ do
         throwError $ err403 {errReasonPhrase = "Author status required."}
 
@@ -31,7 +31,7 @@ articleBelongsToUser :: Entity User -> ArticleId -> App ()
 articleBelongsToUser u aId = do
   katipAddContext (sl "user_id" (entityKey u)) $
     katipAddNamespace "Auth article owner" $ do
-      $(logTM) InfoS "Checking is user owns an article"
+      logFM InfoS "Checking is user owns an article"
       maybeArt <- runDB $ get aId
       case maybeArt of
         Nothing -> throwError err400 {errReasonPhrase = "No article with id " ++ show aId}

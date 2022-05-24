@@ -35,11 +35,10 @@ library
       Api.Internal.Pagination
       Api.User
       App
-      App.KatipMiddleware
       Auth
-      DB.Queries
       DB.Scheme
       Dev
+      KatipMiddleware
       SqlException
   other-modules:
       Paths_metaLampServer

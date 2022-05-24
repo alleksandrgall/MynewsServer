@@ -1,7 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# HLINT ignore "Fuse on/on" #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -21,7 +20,6 @@ import App
 import Control.Applicative ((<|>))
 import Control.Monad (unless, void, when)
 import Control.Monad.IO.Class (liftIO)
-import DB.Queries (queryNestCategoryById)
 import DB.Scheme
 import Data.Aeson hiding (Value)
 import Data.Bifunctor (Bifunctor (bimap))
