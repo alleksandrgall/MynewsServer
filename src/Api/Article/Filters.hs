@@ -22,23 +22,45 @@ type GetWithFilters (t :: [*]) a =
     :> QueryParam "sort_by" SortBy
     :> GetWithPagination t a
 
-maybeFilter :: Maybe a -> (a -> SqlExpr a) -> SqlExpr a
-maybeFilter Nothing _ = x
-maybeFilter (Just p) f = f p
+maybeFilter :: Maybe a -> (a -> SqlExpr (Value Bool)) -> SqlExpr (Value Bool)
+maybeFilter filterParam f = maybe (val True) f filterParam
 
-createdSince :: SqlExpr (Entity Article) -> Day -> SqlExpr (Value Bool)
-createdSince art d = art ^. ArticleCreated >. val d
+createdSinceF :: SqlExpr (Entity Article) -> Day -> SqlExpr (Value Bool)
+createdSinceF art d = art ^. ArticleCreated >. val d
 
-createdUntil :: SqlExpr (Entity Article) -> Day -> SqlQuery ()
-createdUntil art d = where_ (art ^. ArticleCreated <. val d)
+createdUntilF :: SqlExpr (Entity Article) -> Day -> SqlExpr (Value Bool)
+createdUntilF art d = art ^. ArticleCreated <. val d
+
+createdAtF :: SqlExpr (Entity Article) -> Day -> SqlExpr (Value Bool)
+createdAtF art d = art ^. ArticleCreated ==. val d
+
+authorNameF :: SqlExpr (Entity User) -> String -> SqlExpr (Value Bool)
+authorNameF user_ login = user_ ^. UserName ==. val login
+
+categoryNameF_ :: SqlExpr (Entity Category) -> CategoryId -> SqlExpr (Value Bool)
+categoryNameF_ cat catId = cat ^. CategoryId ==. val catId
+
+titleHasF :: SqlExpr (Entity Article) -> String -> SqlExpr (Value Bool)
+titleHasF art subStr = art ^. ArticleTitle `like` (%) ++. val subStr ++. (%)
+
+contentHasF :: SqlExpr (Entity Article) -> String -> SqlExpr (Value Bool)
+contentHasF art subStr = art ^. ArticleContent `like` (%) ++. val subStr ++. (%)
+
+searchF :: SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> String -> SqlExpr (Value Bool)
+searchF art user_ cat subStr =
+  (art ^. ArticleContent `like` (%) ++. val subStr ++. (%)) ||. (user_ ^. UserName `like` (%) ++. val subStr ++. (%))
+    ||. (cat ^. CategoryName `like` (%) ++. val subStr ++. (%))
+
+maybeSort :: Maybe SortBy -> (SortBy -> [SqlExpr OrderBy]) -> [SqlExpr OrderBy]
+maybeSort sortParam f = maybe [] f sortParam
+
+sortByF_ :: SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> SqlExpr (Value Int) -> SortBy -> [SqlExpr OrderBy]
+sortByF_ art _ _ _ Date = [asc (art ^. ArticleCreated)]
+sortByF_ _ user_ _ _ Author = [asc (user_ ^. UserName)]
+sortByF_ _ _ cat _ Category_ = [asc (cat ^. CategoryName)]
+sortByF_ _ _ _ imageNum ImageNum = [asc imageNum]
 
 data SortBy = Date | Author | Category_ | ImageNum
-
--- instance ToHttpApiData SortBy where
---   toUrlPiece Date = "date"
---   toUrlPiece Author = "author"
---   toUrlPiece Category_ = "category"
---   toUrlPiece ImageNum = "image_number"
 
 instance FromHttpApiData SortBy where
   parseUrlPiece t

@@ -7,11 +7,11 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Api.Article where
 
+import Api.Article.Filters
 import Api.Article.Get
 import Api.Internal.Auth (articleBelongsToUser, userAtLeastAuthor_)
 import Api.Internal.ImageManager
@@ -49,17 +49,10 @@ type ArticleApi =
                     :<|> QueryParams "image_id" ImageId :> DeleteAccepted '[JSON] DeleteStatus -- returns number of deleted images
                 )
        )
-    :<|> ( "get" :> QueryParam "created_since" Day :> QueryParam "created_until" Day :> QueryParam "created_at" Day
-             :> QueryParam "author" String
-             :> QueryParam "category" CategoryId
-             :> QueryParam "title_has" String
-             :> QueryParam "content_has" String
-             -- API новостей должно поддерживать поиск по строке,
-             --которая может быть найдена либо в текстовом контенте, либо в имени автора, либо в названии категории.
-             :> QueryParam "search" String
-             :> QueryParam "sort_by" SortBy
-             :> GetWithPagination '[JSON] FormatArticle
-         )
+    :<|> ("get" :> GetWithFilters '[JSON] FormatArticle)
+
+articleApi :: Proxy ArticleApi
+articleApi = Proxy
 
 articleServer :: ServerT ArticleApi App
 articleServer = authorApi :<|> getA
@@ -67,7 +60,7 @@ articleServer = authorApi :<|> getA
     authorApi user = create user :<|> alter user
     alter user articleId = alterAdd user articleId :<|> alterDelete user articleId
 
---  Creating article method
+--  Creating article
 data IncomingArticle = IncomingArticle
   { incomingTitle :: String,
     incomingCategoryId :: CategoryId,
@@ -141,6 +134,8 @@ alterAdd u aId form = do
         logFM InfoS "Article altered"
         runDB $ getFormatArticle aId
 
+--Deleting pictures from the article
+
 alterDelete :: P.Entity User -> ArticleId -> [ImageId] -> App DeleteStatus
 alterDelete u aId imIds = do
   katipAddContext (sl "article_id" aId) $ do
@@ -148,7 +143,7 @@ alterDelete u aId imIds = do
     articleBelongsToUser u aId
     deleteImagesArticle imIds aId
 
-articleApi = Proxy :: Proxy ArticleApi
+-- Getting article with filters, search and sort
 
 getA ::
   Maybe Day -> -- created_since
@@ -163,5 +158,23 @@ getA ::
   Maybe Limit ->
   Maybe Offset ->
   AppT IO (WithOffset FormatArticle)
-getA createdSince createdUntil creactedAt authorName category titleHas contentHas searchStr sort lim off = do
-  undefined
+getA createdSince createdUntil createdAt authorName categoryName_ titleHas contentHas searchStr sortBy_ lim off = do
+  maxLim <- askPaginationLimit
+  runDB $
+    getFormatArticlesPagination
+      ( \art user_ cat imageNum ->
+          maybeFilter createdSince (createdSinceF art)
+            &&. maybeFilter createdUntil (createdUntilF art)
+            &&. maybeFilter createdAt (createdAtF art)
+            &&. maybeFilter authorName (authorNameF user_)
+            &&. maybeFilter categoryName_ (categoryNameF_ cat)
+            &&. maybeFilter titleHas (titleHasF art)
+            &&. maybeFilter contentHas (contentHasF art)
+            &&. maybeFilter searchStr (searchF art user_ cat)
+      )
+      ( \art user_ cat imageNum ->
+          maybeSort sortBy_ (sortByF_ art user_ cat imageNum)
+      )
+      lim
+      maxLim
+      off
