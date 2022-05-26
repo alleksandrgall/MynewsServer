@@ -11,7 +11,7 @@ module Api.User where
 import Api.Internal.Auth
 import Api.Internal.ImageManager
 import Api.Internal.Pagination
-import App
+import App.App
 import Control.Applicative ((<|>))
 import Control.Monad (unless, when)
 import Control.Monad.IO.Class (liftIO)
@@ -28,7 +28,7 @@ import Data.Time (UTCTime (utctDay), getCurrentTime)
 import Database.Esqueleto.Experimental hiding (get)
 import qualified Database.Persist as P
 import GHC.Generics (Generic)
-import Katip (Severity (InfoS), katipAddContext, logFM)
+import Katip (Severity (InfoS), katipAddContext, logFM, sl)
 import Servant
 import Servant.Multipart
 import qualified Text.Read as T
@@ -105,8 +105,10 @@ toAuthor u name = do
 
 getU :: Maybe Limit -> Maybe Offset -> App (WithOffset (Entity User))
 getU lim off = do
-  maxLimit <- askPaginationLimit
-  runDB
-    . selectPagination lim off maxLimit
-    $ do
-      from $ table @User
+  katipAddContext (sl "limit" lim <> sl "offset" off) $ do
+    logFM InfoS "Getting user from DB"
+    maxLimit <- askPaginationLimit
+    runDB
+      . selectPagination lim off maxLimit
+      $ do
+        from $ table @User

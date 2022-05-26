@@ -14,7 +14,7 @@ module Api.Internal.ImageManager
   )
 where
 
-import App
+import App.App
 import Control.Monad (foldM, void, when)
 import Control.Monad.Catch
 import Control.Monad.Except (MonadTrans (lift), throwError)

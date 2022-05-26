@@ -1,9 +1,9 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# HLINT ignore "Use newtype instead of data" #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# HLINT ignore "Use newtype instead of data" #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
@@ -32,9 +32,9 @@ import Katip
 import Servant
 import System.Environment (getArgs)
 import System.IO (BufferMode (LineBuffering), hSetBuffering, stderr, stdout)
-import UnliftIO (MonadUnliftIO (withRunInIO))
+import UnliftIO (MonadUnliftIO)
 
-newtype AppT m a = AppT {unAppT :: ReaderT AppConfig (ExceptT ServerError m) a}
+newtype AppT m a = AppT {unApp :: ReaderT AppConfig m a}
   deriving
     ( Functor,
       Applicative,
@@ -42,18 +42,15 @@ newtype AppT m a = AppT {unAppT :: ReaderT AppConfig (ExceptT ServerError m) a}
       MonadThrow,
       MonadCatch,
       MonadReader AppConfig,
-      MonadError ServerError,
       MonadIO,
       MonadUnliftIO
     )
 
-instance (MonadUnliftIO m, MonadCatch m) => MonadUnliftIO (ExceptT ServerError m) where
-  withRunInIO exceptToIO = ExceptT $
-    try $ do
-      withRunInIO $ \runInIO ->
-        exceptToIO (runInIO . (either throwM pure <=< runExceptT))
+instance (MonadError ServerError m) => MonadError ServerError (AppT m) where
+  throwError e = AppT . ReaderT $ \r -> throwError e
+  catchError m h = AppT . ReaderT $ \r -> catchError (flip runReaderT r . unApp $ m) (flip runReaderT r . unApp . h)
 
-type App = AppT IO
+type App = AppT Handler
 
 data AppConfig = AppConfig
   { generalConfig :: Config,
@@ -191,8 +188,8 @@ instance (MonadIO m) => KatipContext (AppT m) where
   getKatipNamespace = asks (logNamespace . logConfig)
   localKatipNamespace f (AppT m) = AppT (local (\s -> s {logConfig = (logConfig s) {logNamespace = f . logNamespace . logConfig $ s}}) m)
 
-convertApp :: (MonadUnliftIO m) => AppConfig -> AppT m a -> m (Handler a)
-convertApp c app = withRunInIO $ \run -> return . Handler . ExceptT . run . runExceptT $ runReaderT (unAppT app) c
+convertApp :: AppConfig -> App a -> Handler a
+convertApp c (AppT a) = runReaderT a c
 
 toServer :: HasServer api '[BasicAuthCheck (Entity User)] => Proxy api -> AppConfig -> ServerT api App -> Server api
 toServer api conf = hoistServerWithContext api (Proxy :: Proxy '[BasicAuthCheck (Entity User)]) (convertApp conf)

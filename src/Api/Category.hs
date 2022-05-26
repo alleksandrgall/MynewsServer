@@ -12,7 +12,7 @@ module Api.Category where
 import Api.Internal.Auth
 import Api.Internal.Optional
 import Api.Internal.Pagination
-import App
+import App.App
 import Control.Exception (Exception, SomeException (SomeException))
 import Control.Monad (unless, when)
 import Control.Monad.Catch hiding (Handler)

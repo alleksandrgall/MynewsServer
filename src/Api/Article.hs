@@ -17,7 +17,7 @@ import Api.Internal.Auth (articleBelongsToUser, userAtLeastAuthor_)
 import Api.Internal.ImageManager
 import Api.Internal.Optional
 import Api.Internal.Pagination (GetWithPagination, Limit, Offset, WithOffset)
-import App
+import App.App
 import Control.Applicative ((<|>))
 import Control.Monad (unless, void, when)
 import Control.Monad.IO.Class (liftIO)
@@ -168,7 +168,7 @@ getA ::
   Maybe SortBy -> -- sortParam
   Maybe Limit ->
   Maybe Offset ->
-  AppT IO (WithOffset FormatArticle)
+  App (WithOffset FormatArticle)
 getA createdSince createdUntil createdAt authorName categoryName_ titleHas contentHas searchStr sortBy_ lim off = do
   maxLim <- askPaginationLimit
   runDB $

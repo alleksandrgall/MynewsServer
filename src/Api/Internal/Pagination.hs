@@ -39,6 +39,8 @@ instance ToJSON Offset where toJSON (Offset i) = toJSON i
 
 newtype Limit = Limit {unLimit :: Int}
 
+instance ToJSON Limit where toJSON (Limit i) = toJSON i
+
 instance FromHttpApiData Offset where
   parseUrlPiece s = case parseUrlPiece @Int s of
     Left e -> Left e

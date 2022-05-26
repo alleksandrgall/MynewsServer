@@ -37,7 +37,7 @@ library
       Api.User
       App
       App.App
-      App.MiddlewareT
+      App.Middleware
       App.ReqLogger
       Auth
       DB.Scheme

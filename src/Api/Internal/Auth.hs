@@ -3,7 +3,7 @@
 
 module Api.Internal.Auth where
 
-import App (App, runDB)
+import App.App (App, runDB)
 import Control.Monad (unless)
 import Control.Monad.Except (throwError)
 import DB.Scheme (Article (Article, articleUserId), ArticleId, User (User, userIsAdmin, userIsAuthor, userName))
