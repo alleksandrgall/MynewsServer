@@ -36,6 +36,9 @@ library
       Api.Internal.Pagination
       Api.User
       App
+      App.App
+      App.MiddlewareT
+      App.ReqLogger
       Auth
       DB.Scheme
       Dev
@@ -71,6 +74,7 @@ library
     , text
     , time
     , transformers
+    , unliftio
     , wai
     , wai-extra
     , warp
@@ -108,6 +112,7 @@ executable metaLampServer-exe
     , text
     , time
     , transformers
+    , unliftio
     , wai
     , wai-extra
     , warp
@@ -146,6 +151,7 @@ test-suite metaLampServer-test
     , text
     , time
     , transformers
+    , unliftio
     , wai
     , wai-extra
     , warp
