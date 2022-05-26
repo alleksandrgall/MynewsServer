@@ -30,15 +30,35 @@ import qualified Network.Wai as W
 import Servant
 import UnliftIO (MonadUnliftIO (withRunInIO))
 
-type ApplicationM = W.Request -> (W.Response -> AppT IO W.ResponseReceived) -> AppT IO W.ResponseReceived
+newtype KatipM a = KatipM {unKatipM :: ReaderT LogConfig IO a}
+  deriving
+    ( Functor,
+      Applicative,
+      Monad,
+      MonadReader LogConfig,
+      MonadIO,
+      MonadUnliftIO
+    )
+
+instance Katip KatipM where
+  getLogEnv = asks logEnv
+  localLogEnv f (KatipM m) = KatipM $ local (\s -> s {logEnv = f $ logEnv s}) m
+
+instance KatipContext KatipM where
+  getKatipContext = asks logContext
+  localKatipContext f (KatipM m) = KatipM (local (\s -> s {logContext = f $ logContext s}) m)
+  getKatipNamespace = asks logNamespace
+  localKatipNamespace f (KatipM m) = KatipM (local (\s -> s {logNamespace = f $ logNamespace s}) m)
+
+type ApplicationM = W.Request -> (W.Response -> KatipM W.ResponseReceived) -> KatipM W.ResponseReceived
 
 type MiddlewareM = ApplicationM -> ApplicationM
 
 toApplicationIO :: W.Application -> ApplicationM
 toApplicationIO app req respReceived = withRunInIO $ \inner -> app req (inner . respReceived)
 
-runApplicationM :: AppConfig -> ApplicationM -> W.Application
-runApplicationM appConf app req respReceived = flip runReaderT appConf . unApp $ app req (liftIO . respReceived)
+runApplicationM :: LogConfig -> ApplicationM -> W.Application
+runApplicationM appConf app req respReceived = flip runReaderT appConf . unKatipM $ app req (liftIO . respReceived)
 
 data Request = Request
   { requestHttpVersion :: HttpVersion,
@@ -106,7 +126,7 @@ katipMiddlewareInternal sev baseApp req respRecieved =
         logFM sev "Reponse sent"
         respRecieved resp
 
-katipMiddleware :: AppConfig -> Severity -> W.Middleware
+katipMiddleware :: LogConfig -> Severity -> W.Middleware
 katipMiddleware appConf sev baseApp = runApplicationM appConf (katipMiddlewareInternal sev (toApplicationIO baseApp))
 
 mkApplication ::
@@ -120,11 +140,12 @@ mkApplication ::
   Proxy context ->
   Proxy api ->
   ServerT api App ->
+  AppConfig ->
   ApplicationM
-mkApplication getCtxt prCtxt prApi serverApp = \req respReceived -> do
-  appConf <- ask
+mkApplication getCtxt prCtxt prApi serverApp appConf = \req respReceived -> do
+  logConf <- ask
   let hoistedApp =
-        let toHandler = convertApp appConf
+        let toHandler = convertApp appConf {logConfig = logConf} --- !!!!
             hoistedServer = hoistServerWithContext prApi prCtxt toHandler serverApp
          in serveWithContext prApi (getCtxt appConf) hoistedServer
   withRunInIO $ \toIO -> hoistedApp req (toIO . respReceived)
@@ -145,5 +166,6 @@ mkApplication' ::
   ) =>
   Proxy api ->
   ServerT api App ->
+  AppConfig ->
   ApplicationM
 mkApplication' = mkApplication authContext prCtxt

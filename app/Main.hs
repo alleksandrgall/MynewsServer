@@ -27,7 +27,7 @@ type Api =
 app = userServer :<|> categoryServer :<|> articleServer
 
 main :: IO ()
-main = E.withAppConfig (\config -> run 3000 . E.runApplicationM config . E.katipMiddlewareInternal InfoS . E.mkApplication' (Proxy @Api) $ app)
+main = E.withAppConfig (\config -> run 3000 . E.runApplicationM (E.logConfig config) . E.katipMiddlewareInternal InfoS . E.mkApplication' (Proxy @Api) app $ config)
 
 -- runDBDev $ runMigration migrateAll
 -- withAppConfig (\config -> )run 3000 . katipMiddleware (logConfig config) InfoS . serveApp (Proxy :: Proxy Api) app $ config
