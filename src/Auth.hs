@@ -1,5 +1,11 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use newtype instead of data" #-}
 
 module Auth where
 
@@ -10,6 +16,22 @@ import Data.Text (unpack)
 import Data.Text.Encoding (decodeUtf8)
 import Database.Persist.Sql
 import Servant
+
+data Role = NormalUser | Author | Admin
+
+data AuthUserAtLeast (a :: Role) = AuthUserAtLeast (Entity User)
+
+checkBasicAuthAdmin :: (forall a. SqlPersistM a -> IO a) -> BasicAuthCheck (AuthUserAtLeast 'Admin)
+checkBasicAuthAdmin runDB = undefined
+
+checkBasicAuthAuthor :: (forall a. SqlPersistM a -> IO a) -> BasicAuthCheck (AuthUserAtLeast 'Author)
+checkBasicAuthAuthor runDB = undefined
+
+checkBasicAuthNormal :: (forall a. SqlPersistM a -> IO a) -> BasicAuthCheck (AuthUserAtLeast 'NormalUser)
+checkBasicAuthNormal runDB = undefined
+
+checkBasicAuth' :: (forall a. SqlPersistM a -> IO a) -> BasicAuthCheck (AuthUserAtLeast (r :: Role))
+checkBasicAuth' runDB = undefined
 
 checkBasicAuth :: (forall a. SqlPersistM a -> IO a) -> BasicAuthCheck (Entity User)
 checkBasicAuth runDB = BasicAuthCheck $ \BasicAuthData {..} -> runDB $ do

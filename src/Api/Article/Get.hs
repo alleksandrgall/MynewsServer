@@ -12,6 +12,8 @@ module Api.Article.Get
 where
 
 import Api.Internal.Pagination (Limit, Offset, WithOffset, selectPagination)
+import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import DB.Scheme
 import Data.Aeson
   ( KeyValue ((.=)),
@@ -66,13 +68,12 @@ parseListToNest ents =
         NestCategory (P.entityKey c) (categoryName . P.entityVal $ c) $ children . M.lookup (Just $ P.entityKey c) $ mEnt
    in children root
 
---Unsafe unless aId is garanteed to be a valid ArticleId in Database
-getFormatArticle :: ArticleId -> SqlPersistM FormatArticle
-getFormatArticle aId = do
-  art <- P.getJustEntity aId
-  author <- P.getJustEntity (art & entityVal & articleUserId)
-  category <- P.getJustEntity (art & entityVal & articleCategoryId)
-  toFormatArticle (art, author, category)
+getFormatArticle :: ArticleId -> SqlPersistM (Maybe FormatArticle)
+getFormatArticle aId = runMaybeT $ do
+  art <- MaybeT $ P.getEntity aId
+  author <- MaybeT $ P.getEntity (art & entityVal & articleUserId)
+  category <- MaybeT $ P.getEntity (art & entityVal & articleCategoryId)
+  lift $ toFormatArticle (art, author, category)
 
 getFormatArticlesPagination ::
   (SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> SqlExpr (Value Int) -> SqlExpr (Value Bool)) ->
@@ -98,7 +99,6 @@ getFormatArticlesPagination filters order limit_ maxLimit offset_ = do
           imArt <- from $ table @ImageArticle
           where_ (imArt ^. ImageArticleArticleId ==. art ^. ArticleId)
           pure imArt
-    groupBy (art ^. ArticleId, us ^. UserId, cat ^. CategoryId)
     where_ (filters art us cat countImages &&. art ^. ArticleIsPublished)
     orderBy (order art us cat countImages)
     pure (art, us, cat)

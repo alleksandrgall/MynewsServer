@@ -29,6 +29,7 @@ library
       Api.Article.Filters
       Api.Article.Get
       Api.Category
+      Api.Image
       Api.Internal.Auth
       Api.Internal.ImageManager
       Api.Internal.Optional
@@ -69,6 +70,7 @@ library
     , servant-server
     , text
     , time
+    , transformers
     , wai
     , wai-extra
     , warp
@@ -105,6 +107,7 @@ executable metaLampServer-exe
     , servant-server
     , text
     , time
+    , transformers
     , wai
     , wai-extra
     , warp
@@ -142,6 +145,7 @@ test-suite metaLampServer-test
     , servant-server
     , text
     , time
+    , transformers
     , wai
     , wai-extra
     , warp

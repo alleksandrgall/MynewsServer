@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Api.Article where
@@ -34,7 +35,7 @@ import Database.Esqueleto.Experimental hiding (isNothing)
 import qualified Database.Persist as P
 import Database.Persist.Sql (SqlPersistM)
 import GHC.Generics (Generic)
-import Katip (Severity (InfoS), katipAddContext, katipAddNamespace, logFM, logTM, sl)
+import Katip (Severity (EmergencyS, InfoS), katipAddContext, katipAddNamespace, logFM, logTM, sl)
 import Servant
 import Servant.Multipart
 import qualified Text.Read as T
@@ -102,7 +103,13 @@ create u form = do
         return aId
       katipAddContext (sl "article_id" aId) $
         logFM InfoS "Created"
-      runDB $ getFormatArticle aId
+      maybeFormatArt <- runDB $ getFormatArticle aId
+      maybe
+        ( $(logTM) EmergencyS "DB is unstable."
+            >> throwError err500 {errReasonPhrase = "Critical error"}
+        )
+        return
+        maybeFormatArt
 
 -- Altering article by adding pictures or changing non picture fields
 instance FromMultipart Mem [MaybeSetter Article] where
@@ -130,7 +137,13 @@ alterAdd u aId form = do
         unless isEmptyImages $ void $ saveAndInsertImages (files form) (void . P.insert . ImageArticle aId)
         unless isEmptySetters $ runDB $ P.update aId (setsMaybe setters)
         logFM InfoS "Article altered"
-        runDB $ getFormatArticle aId
+        maybeFormatArt <- runDB $ getFormatArticle aId
+        maybe
+          ( $(logTM) EmergencyS "DB is unstable."
+              >> throwError err500 {errReasonPhrase = "Critical error"}
+          )
+          return
+          maybeFormatArt
 
 --Deleting pictures from the article
 
