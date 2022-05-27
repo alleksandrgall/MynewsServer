@@ -17,7 +17,7 @@ import Api.Internal.Auth (articleBelongsToUser, userAtLeastAuthor_)
 import Api.Internal.ImageManager
 import Api.Internal.Optional
 import Api.Internal.Pagination (GetWithPagination, Limit, Offset, WithOffset)
-import App.App
+import App (App, askPaginationLimit, runDB)
 import Control.Applicative ((<|>))
 import Control.Monad (unless, void, when)
 import Control.Monad.IO.Class (liftIO)

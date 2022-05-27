@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      Api
       Api.Article
       Api.Article.Filters
       Api.Article.Get
@@ -37,12 +38,10 @@ library
       Api.User
       App
       App.App
+      App.Auth
       App.Middleware
-      App.ReqLogger
-      Auth
       DB.Scheme
       Dev
-      KatipMiddleware
       SqlException
   other-modules:
       Paths_metaLampServer
@@ -74,7 +73,6 @@ library
     , text
     , time
     , transformers
-    , unliftio
     , wai
     , wai-extra
     , warp
@@ -112,7 +110,6 @@ executable metaLampServer-exe
     , text
     , time
     , transformers
-    , unliftio
     , wai
     , wai-extra
     , warp
@@ -151,7 +148,6 @@ test-suite metaLampServer-test
     , text
     , time
     , transformers
-    , unliftio
     , wai
     , wai-extra
     , warp

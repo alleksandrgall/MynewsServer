@@ -35,7 +35,6 @@ dependencies:
 - persistent-template
 - configurator
 - transformers
-- unliftio
 # postgresql-simple brings in the scope SqlError which is used for exception handling
 - postgresql-simple
 - monad-logger

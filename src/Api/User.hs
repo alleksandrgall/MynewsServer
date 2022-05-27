@@ -11,7 +11,7 @@ module Api.User where
 import Api.Internal.Auth
 import Api.Internal.ImageManager
 import Api.Internal.Pagination
-import App.App
+import App
 import Control.Applicative ((<|>))
 import Control.Monad (unless, when)
 import Control.Monad.IO.Class (liftIO)

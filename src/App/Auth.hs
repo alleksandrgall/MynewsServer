@@ -7,7 +7,7 @@
 
 {-# HLINT ignore "Use newtype instead of data" #-}
 
-module Auth where
+module App.Auth where
 
 import Control.Monad (unless)
 import Crypto.KDF.BCrypt (validatePassword)
@@ -32,6 +32,8 @@ checkBasicAuthNormal runDB = undefined
 
 checkBasicAuth' :: (forall a. SqlPersistM a -> IO a) -> BasicAuthCheck (AuthUserAtLeast (r :: Role))
 checkBasicAuth' runDB = undefined
+
+type AuthContext = BasicAuthCheck (Entity User)
 
 checkBasicAuth :: (forall a. SqlPersistM a -> IO a) -> BasicAuthCheck (Entity User)
 checkBasicAuth runDB = BasicAuthCheck $ \BasicAuthData {..} -> runDB $ do
