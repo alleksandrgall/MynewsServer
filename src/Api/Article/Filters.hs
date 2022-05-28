@@ -37,8 +37,8 @@ createdAtF art d = art ^. ArticleCreated ==. val d
 authorNameF :: SqlExpr (Entity User) -> String -> SqlExpr (Value Bool)
 authorNameF user_ login = user_ ^. UserName ==. val login
 
-categoryNameF_ :: SqlExpr (Entity Category) -> CategoryId -> SqlExpr (Value Bool)
-categoryNameF_ cat catId = cat ^. CategoryId ==. val catId
+categoryIdF_ :: SqlExpr (Entity Category) -> CategoryId -> SqlExpr (Value Bool)
+categoryIdF_ cat catId = cat ^. CategoryId ==. val catId
 
 titleHasF :: SqlExpr (Entity Article) -> String -> SqlExpr (Value Bool)
 titleHasF art subStr = art ^. ArticleTitle `like` (%) ++. val subStr ++. (%)
@@ -60,7 +60,7 @@ sortByF_ _ user_ _ _ Author = [asc (user_ ^. UserName)]
 sortByF_ _ _ cat _ Category_ = [asc (cat ^. CategoryName)]
 sortByF_ _ _ _ imageNum ImageNum = [asc imageNum]
 
-data SortBy = Date | Author | Category_ | ImageNum
+data SortBy = Date | Author | Category_ | ImageNum deriving (Show)
 
 instance FromHttpApiData SortBy where
   parseUrlPiece t

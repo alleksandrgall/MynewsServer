@@ -99,7 +99,7 @@ create (Auth u) form = do
         mapM_ (P.insert . ImageArticle aId) imageIds
         return aId
       katipAddContext (sl "article_id" aId) $
-        logFM InfoS "Created"
+        logFM InfoS "Article created"
       maybeFormatArt <- runDB $ getFormatArticle aId
       maybe
         ( $(logTM) EmergencyS "DB is unstable."
@@ -149,7 +149,8 @@ alterDelete (Auth u) aId imIds = do
   katipAddContext (sl "article_id" aId) $ do
     logFM InfoS "Deleting images form article"
     articleBelongsToUser u aId
-    deleteImagesArticle imIds aId
+    delStatus <- deleteImagesArticle imIds aId
+    katipAddContext (sl "delete_success" (deleteStatus delStatus)) $ logFM InfoS "Images deleted" >> return delStatus
 
 -- Getting article with filters, search and sort
 
@@ -166,23 +167,39 @@ getA ::
   Maybe Limit ->
   Maybe Offset ->
   App (WithOffset FormatArticle)
-getA createdSince createdUntil createdAt authorName categoryName_ titleHas contentHas searchStr sortBy_ lim off = do
-  maxLim <- askPaginationLimit
-  runDB $
-    getFormatArticlesPagination
-      ( \art user_ cat imageNum ->
-          maybeFilter createdSince (createdSinceF art)
-            &&. maybeFilter createdUntil (createdUntilF art)
-            &&. maybeFilter createdAt (createdAtF art)
-            &&. maybeFilter authorName (authorNameF user_)
-            &&. maybeFilter categoryName_ (categoryNameF_ cat)
-            &&. maybeFilter titleHas (titleHasF art)
-            &&. maybeFilter contentHas (contentHasF art)
-            &&. maybeFilter searchStr (searchF art user_ cat)
-      )
-      ( \art user_ cat imageNum ->
-          maybeSort sortBy_ (sortByF_ art user_ cat imageNum)
-      )
-      lim
-      maxLim
-      off
+getA createdSince createdUntil createdAt authorName categoryId_ titleHas contentHas searchStr sortBy_ lim off = do
+  katipAddContext
+    ( sl "created_since" createdSince <> sl "created_until" createdUntil
+        <> sl "created_at" createdAt
+        <> sl "author_name" authorName
+        <> sl "category_id" categoryId_
+        <> sl "title_has" titleHas
+        <> sl "content_has" contentHas
+        <> sl "search_string" searchStr
+        <> sl "sort_by" (show sortBy_)
+        <> sl "limit" lim
+        <> sl "offset" off
+    )
+    $ do
+      logFM InfoS "Sending articles"
+      maxLim <- askPaginationLimit
+      articles <-
+        runDB $
+          getFormatArticlesPagination
+            ( \art user_ cat imageNum ->
+                maybeFilter createdSince (createdSinceF art)
+                  &&. maybeFilter createdUntil (createdUntilF art)
+                  &&. maybeFilter createdAt (createdAtF art)
+                  &&. maybeFilter authorName (authorNameF user_)
+                  &&. maybeFilter categoryId_ (categoryIdF_ cat)
+                  &&. maybeFilter titleHas (titleHasF art)
+                  &&. maybeFilter contentHas (contentHasF art)
+                  &&. maybeFilter searchStr (searchF art user_ cat)
+            )
+            ( \art user_ cat imageNum ->
+                maybeSort sortBy_ (sortByF_ art user_ cat imageNum)
+            )
+            lim
+            maxLim
+            off
+      katipAddContext (sl "article_num" (length articles)) $ logFM InfoS "Articles sent" >> return articles

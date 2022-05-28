@@ -14,26 +14,26 @@ import Servant
 userIsAdmin_ :: Entity User -> App ()
 userIsAdmin_ u =
   katipAddContext (sl "user_id" (entityKey u)) $
-    katipAddNamespace "Auth admin" $
-      unless (u & entityVal & userIsAdmin) $ do
-        throwError err404
+    katipAddNamespace "Auth admin" $ do
+      unless (u & entityVal & userIsAdmin) $ throwError err404
+      logFM InfoS "Auth success"
 
 userAtLeastAuthor_ :: Entity User -> App ()
 userAtLeastAuthor_ u =
   katipAddContext (sl "user_id" (entityKey u)) $
     katipAddNamespace "Auth author" $ do
-      logFM InfoS "Checking if user at least author"
-      unless ((u & entityVal & userIsAuthor) || (u & entityVal & userIsAdmin)) $ do
+      unless ((u & entityVal & userIsAuthor) || (u & entityVal & userIsAdmin)) $
         throwError $ err403 {errReasonPhrase = "Author status required."}
+      logFM InfoS "Auth success"
 
 articleBelongsToUser :: Entity User -> ArticleId -> App ()
 articleBelongsToUser u aId = do
   katipAddContext (sl "user_id" (entityKey u)) $
     katipAddNamespace "Auth article owner" $ do
-      logFM InfoS "Checking is user owns an article"
       maybeArt <- runDB $ get aId
       case maybeArt of
         Nothing -> throwError err400 {errReasonPhrase = "No article with id " ++ show aId}
-        Just Article {..} ->
+        Just Article {..} -> do
           unless ((u & entityKey) == articleUserId || (u & entityVal & userIsAdmin)) $
             throwError $ err403 {errReasonPhrase = "Provided user is not an author of that article."}
+          logFM InfoS "Auth success"

@@ -90,7 +90,8 @@ create (Auth u) form = do
           avIds <- saveAndInsertImages [fd] (const $ return ())
           return (Just . head $ avIds)
       dbU <- liftIO $ incUserToDbUser incUser maybeAvId
-      runDB $ insert dbU
+      uId <- runDB $ insert dbU
+      katipAddContext (sl "user_id" uId) $ logFM InfoS "User created" >> return uId
 
 isUserExists :: String -> App Bool
 isUserExists name = isJust <$> (runDB . getBy $ UniqueUserName name)
@@ -101,13 +102,15 @@ toAuthor (Auth u) name = do
   exists_ <- isUserExists name
   unless exists_ (throwError err400 {errReasonPhrase = "No such user."})
   runDB $ P.updateWhere [UserName P.==. name] [UserIsAuthor P.=. True]
-  return NoContent
+  katipAddContext (sl "user_name" name) $ logFM InfoS "User promoted to author" >> return NoContent
 
 getU :: Maybe Limit -> Maybe Offset -> App (WithOffset (Entity User))
 getU lim off = do
   katipAddContext (sl "limit" lim <> sl "offset" off) $ do
-    logFM InfoS "Getting user from DB"
+    logFM InfoS "Sending users"
     maxLimit <- askPaginationLimit
-    runDB
-      . selectPagination lim off maxLimit
-      $ from $ table @User
+    users <-
+      runDB
+        . selectPagination lim off maxLimit
+        $ from $ table @User
+    katipAddContext (sl "user_number" (length users)) $ logFM InfoS "Users sent" >> return users
