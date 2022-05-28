@@ -60,6 +60,7 @@ library
     , directory
     , esqueleto
     , exceptions
+    , http-media
     , http-types
     , katip
     , monad-logger
@@ -98,6 +99,7 @@ executable metaLampServer-exe
     , directory
     , esqueleto
     , exceptions
+    , http-media
     , http-types
     , katip
     , metaLampServer
@@ -138,6 +140,7 @@ test-suite metaLampServer-test
     , directory
     , esqueleto
     , exceptions
+    , http-media
     , http-types
     , katip
     , metaLampServer
