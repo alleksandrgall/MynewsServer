@@ -1,11 +1,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -17,7 +14,7 @@ import Api.Internal.Auth (articleBelongsToUser, userAtLeastAuthor_)
 import Api.Internal.ImageManager
 import Api.Internal.Optional
 import Api.Internal.Pagination (GetWithPagination, Limit, Offset, WithOffset)
-import App (App, askPaginationLimit, runDB)
+import App (App, Auth (Auth), askPaginationLimit, runDB)
 import Control.Applicative ((<|>))
 import Control.Monad (unless, void, when)
 import Control.Monad.IO.Class (liftIO)
@@ -41,7 +38,7 @@ import Servant.Multipart
 import qualified Text.Read as T
 
 type ArticleApi =
-  BasicAuth "Is author" (P.Entity User)
+  AuthProtect "normal"
     :> ( "create" :> MultipartForm Mem (MultipartData Mem) :> PutCreated '[JSON] FormatArticle -- json article and photoes in form
            :<|> "alter" :> Capture "article_id" ArticleId
              :> ( MultipartForm Mem (MultipartData Mem) :> PostAccepted '[JSON] FormatArticle -- alter article by sending new IncomingArticle and/or images
@@ -87,8 +84,8 @@ incomingArticleToDbArticle IncomingArticle {..} uId = do
   day <- utctDay <$> getCurrentTime
   return $ Article incomingTitle day uId incomingCategoryId incomingContent incomingIsPublished
 
-create :: P.Entity User -> MultipartData Mem -> App FormatArticle
-create u form = do
+create :: Auth a -> MultipartData Mem -> App FormatArticle
+create (Auth u) form = do
   logFM InfoS "Creating an article"
   userAtLeastAuthor_ u
   case fromMultipart form of
@@ -123,8 +120,8 @@ instance FromMultipart Mem [MaybeSetter Article] where
     where
       lookupF f name = either (const Nothing) f (lookupInput name form)
 
-alterAdd :: P.Entity User -> ArticleId -> MultipartData Mem -> App FormatArticle
-alterAdd u aId form = do
+alterAdd :: Auth a -> ArticleId -> MultipartData Mem -> App FormatArticle
+alterAdd (Auth u) aId form = do
   katipAddContext (sl "article_id" aId) $ do
     logFM InfoS "Altering an article"
     articleBelongsToUser u aId
@@ -147,8 +144,8 @@ alterAdd u aId form = do
 
 --Deleting pictures from the article
 
-alterDelete :: P.Entity User -> ArticleId -> [ImageId] -> App DeleteStatus
-alterDelete u aId imIds = do
+alterDelete :: Auth a -> ArticleId -> [ImageId] -> App DeleteStatus
+alterDelete (Auth u) aId imIds = do
   katipAddContext (sl "article_id" aId) $ do
     logFM InfoS "Deleting images form article"
     articleBelongsToUser u aId

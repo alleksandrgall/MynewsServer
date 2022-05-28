@@ -2,16 +2,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# HLINT ignore "Use newtype instead of data" #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module App.App where
 
-import App.Auth (checkBasicAuth)
+import App.Auth
 import Control.Concurrent (killThread)
 import Control.Exception (throwIO)
 import Control.Monad.Catch (Exception, MonadCatch, MonadThrow, bracket)
@@ -31,7 +29,6 @@ import Database.Persist.Postgresql (Entity, SqlPersistM, liftSqlPersistMPool, wi
 import qualified Katip as K
 import Servant
   ( Application,
-    BasicAuthCheck,
     Context (EmptyContext, (:.)),
     Handler,
     HasServer (ServerT, hoistServerWithContext),
@@ -196,18 +193,15 @@ instance (MonadIO m) => K.KatipContext (AppT m) where
   getKatipNamespace = asks (logNamespace . logConfig)
   localKatipNamespace f (AppT m) = AppT (local (\s -> s {logConfig = (logConfig s) {logNamespace = f . logNamespace . logConfig $ s}}) m)
 
-type AuthContext = BasicAuthCheck (Entity User)
-
 convertApp :: AppConfig -> App a -> Handler a
 convertApp c (AppT a) = runReaderT a c
 
-toServer :: HasServer api '[AuthContext] => Proxy api -> AppConfig -> ServerT api App -> Server api
-toServer api conf = hoistServerWithContext api (Proxy @'[AuthContext]) (convertApp conf)
+toServer :: HasServer api AuthContext => Proxy api -> AppConfig -> ServerT api App -> Server api
+toServer api conf = hoistServerWithContext api (Proxy @AuthContext) (convertApp conf)
 
-serveApp :: HasServer api '[AuthContext] => Proxy api -> ServerT api App -> AppConfig -> Application
-serveApp api appServer conf = serveWithContext api ctx (toServer api conf appServer)
+serveApp :: HasServer api AuthContext => Proxy api -> ServerT api App -> AppConfig -> Application
+serveApp api appServer conf = serveWithContext api (authContext dbRunner) (toServer api conf appServer)
   where
-    ctx = checkBasicAuth dbRunner :. EmptyContext
     dbRunner :: forall a. SqlPersistM a -> IO a
     dbRunner = \query -> flip runReaderT conf $ do
       conStr <- askConStr

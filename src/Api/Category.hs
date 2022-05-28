@@ -1,9 +1,10 @@
-{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
@@ -27,12 +28,12 @@ import Servant
 import SqlException (SqlException (NotExists))
 
 type CategoryApi =
-  BasicAuth "admin" (Entity User)
+  AuthProtect "admin"
     :> ( "create" :> QueryParam' [Required, Strict] "name" String
            :> QueryParam' [Required, Strict] "parent" Parent
            :> Put '[JSON] CategoryId
        )
-    :<|> BasicAuth "admin" (Entity User)
+    :<|> AuthProtect "admin"
     :> ( "alter" :> Capture "category_id" CategoryId
            :> QueryParam "name" String
            :> QueryParam "parent" Parent
@@ -68,15 +69,15 @@ categoryDBHandler e = case fromException e of
   Just NotExists -> throwError err400 {errReasonPhrase = "Given parent category doesn't exist."}
   _ -> throwM e
 
-create :: Entity User -> String -> Parent -> App CategoryId
-create u name parentId = do
+create :: Auth a -> String -> Parent -> App CategoryId
+create (Auth u) name parentId = do
   userIsAdmin_ u
   isUniqueSibling name parentId >>= \f ->
     unless f $ throwError err400 {errReasonPhrase = "Already have a category with the same \"name\" and \"parent\"."}
   runDB (insert $ Category name (unParent parentId)) `catch` categoryDBHandler
 
-alter :: Entity User -> CategoryId -> Maybe String -> Maybe Parent -> App NoContent
-alter u trgId name parentId = do
+alter :: Auth a -> CategoryId -> Maybe String -> Maybe Parent -> App NoContent
+alter (Auth u) trgId name parentId = do
   userIsAdmin_ u
   when (allNothing [QParam name, QParam parentId]) $
     throwError err400 {errReasonPhrase = "Query parameter \"name\" and/or \"parent\" are required"}
@@ -94,5 +95,4 @@ getC lim off = do
   maxLimit <- askPaginationLimit
   runDB
     . selectPagination lim off maxLimit
-    $ do
-      from $ table @Category
+    $ from $ table @Category

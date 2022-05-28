@@ -44,6 +44,8 @@ dependencies:
 - text
 - containers
 - cryptonite
+- base64-bytestring
+- word8
 - mtl
 - directory
 - exceptions

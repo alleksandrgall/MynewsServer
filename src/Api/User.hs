@@ -11,7 +11,7 @@ module Api.User where
 import Api.Internal.Auth
 import Api.Internal.ImageManager
 import Api.Internal.Pagination
-import App
+import App (App, Auth (Auth), askPaginationLimit, runDB)
 import Control.Applicative ((<|>))
 import Control.Monad (unless, when)
 import Control.Monad.IO.Class (liftIO)
@@ -34,8 +34,8 @@ import Servant.Multipart
 import qualified Text.Read as T
 
 type UserApi =
-  BasicAuth "admin" (Entity User) :> "create" :> MultipartForm Mem (MultipartData Mem) :> Put '[JSON] UserId
-    :<|> BasicAuth "admin" (Entity User) :> "to_author" :> QueryParam' '[Required] "username" String :> PostNoContent
+  AuthProtect "admin" :> "create" :> MultipartForm Mem (MultipartData Mem) :> Put '[JSON] UserId
+    :<|> AuthProtect "admin" :> "to_author" :> QueryParam' '[Required] "username" String :> PostNoContent
     :<|> GetWithPagination '[JSON] (Entity User)
 
 userApi :: Proxy UserApi
@@ -75,10 +75,10 @@ instance FromMultipart Mem IncomingUser where
       withDef (Right x) _ = Right x
       withDef _ def = Right def
 
-create :: Entity User -> MultipartData Mem -> App UserId
-create admin form = do
+create :: Auth a -> MultipartData Mem -> App UserId
+create (Auth u) form = do
   logFM InfoS "Creating a user"
-  userIsAdmin_ admin
+  userIsAdmin_ u
   case fromMultipart form of
     Left e -> throwError err400 {errReasonPhrase = e}
     Right incUser -> do
@@ -95,8 +95,8 @@ create admin form = do
 isUserExists :: String -> App Bool
 isUserExists name = isJust <$> (runDB . getBy $ UniqueUserName name)
 
-toAuthor :: Entity User -> String -> App NoContent
-toAuthor u name = do
+toAuthor :: Auth a -> String -> App NoContent
+toAuthor (Auth u) name = do
   userIsAdmin_ u
   exists_ <- isUserExists name
   unless exists_ (throwError err400 {errReasonPhrase = "No such user."})
@@ -110,5 +110,4 @@ getU lim off = do
     maxLimit <- askPaginationLimit
     runDB
       . selectPagination lim off maxLimit
-      $ do
-        from $ table @User
+      $ from $ table @User

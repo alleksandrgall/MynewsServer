@@ -1,12 +1,7 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# HLINT ignore "Redundant lambda" #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module App.Middleware where
 
@@ -115,6 +110,6 @@ katipMiddleware sev baseApp req respRecieved =
         respRecieved resp
 
 mkApplicationK :: (AppConfig -> W.Application) -> (AppConfig -> ApplicationK)
-mkApplicationK f = \appConfig req respReceived -> do
-  logConf <- ask
-  liftIO $ f (appConfig {logConfig = logConf}) req (flip runReaderT logConf . unKatipM . respReceived)
+mkApplicationK f appConfig req respReceived = do
+  localLogConfig <- ask
+  liftIO $ f (appConfig {logConfig = localLogConfig}) req (flip runReaderT localLogConfig . unKatipM . respReceived)
