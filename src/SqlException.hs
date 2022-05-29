@@ -4,7 +4,6 @@ module SqlException where
 
 import Control.Exception (Exception)
 import Control.Exception.Base (Exception (fromException))
-import Data.Text (Text)
 import Database.PostgreSQL.Simple (SqlError (SqlError, sqlState))
 
 data SqlException

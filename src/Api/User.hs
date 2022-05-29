@@ -8,19 +8,31 @@
 
 module Api.User where
 
-import Api.Internal.Auth
-import Api.Internal.ImageManager
+import Api.Internal.Auth (userIsAdmin_)
+import Api.Internal.ImageManager (saveAndInsertImages)
 import Api.Internal.Pagination
-import App (App, Auth (Auth), askPaginationLimit, runDB)
+  ( GetWithPagination,
+    Limit,
+    Offset,
+    WithOffset,
+    selectPagination,
+  )
+import App (App, askPaginationLimit, runDB)
+import App.Auth (Auth (Auth))
 import Control.Applicative ((<|>))
 import Control.Monad (unless, when)
 import Control.Monad.IO.Class (liftIO)
 import Crypto.KDF.BCrypt (hashPassword)
 import DB.Scheme
-import Data.Aeson
+  ( EntityField (UserIsAuthor, UserName),
+    ImageId,
+    Unique (UniqueUserName),
+    User (..),
+    UserId,
+  )
+import qualified Data.Aeson as A
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
-import Data.Char (toLower)
 import Data.Maybe (isJust)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
@@ -30,7 +42,29 @@ import qualified Database.Persist as P
 import GHC.Generics (Generic)
 import Katip (Severity (InfoS), katipAddContext, logFM, sl)
 import Servant
+  ( AuthProtect,
+    HasServer (ServerT),
+    JSON,
+    NoContent (..),
+    PostNoContent,
+    Proxy (..),
+    Put,
+    QueryParam',
+    Required,
+    ServerError (errReasonPhrase),
+    err400,
+    throwError,
+    type (:<|>) (..),
+    type (:>),
+  )
 import Servant.Multipart
+  ( FromMultipart (..),
+    Mem,
+    MultipartData,
+    MultipartForm,
+    lookupFile,
+    lookupInput,
+  )
 import qualified Text.Read as T
 
 type UserApi =
@@ -61,11 +95,11 @@ incUserToDbUser IncomingUser {..} imId = do
         userIsAuthor = incomingIsAuthor
       }
 
-instance FromJSON IncomingUser where
-  parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_' . drop 8}
+instance A.FromJSON IncomingUser where
+  parseJSON = A.genericParseJSON A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . drop 8}
 
 instance FromMultipart Mem IncomingUser where
-  fromMultipart form = parseMultipart <|> (lookupInput "user" form >>= eitherDecode . LBS.fromStrict . encodeUtf8)
+  fromMultipart form = parseMultipart <|> (lookupInput "user" form >>= A.eitherDecode . LBS.fromStrict . encodeUtf8)
     where
       parseMultipart =
         IncomingUser <$> (T.unpack <$> lookupInput "name" form)

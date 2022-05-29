@@ -1,8 +1,8 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# HLINT ignore "Fuse on/on" #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE TypeApplications #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Fuse on/on" #-}
 
 module Api.Article.Get
   ( FormatArticle,
@@ -15,20 +15,59 @@ import Api.Internal.Pagination (Limit, Offset, WithOffset, selectPagination)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import DB.Scheme
-import Data.Aeson
-  ( KeyValue ((.=)),
-    Options (fieldLabelModifier),
-    ToJSON (toJSON),
-    camelTo2,
-    defaultOptions,
-    genericToJSON,
-    object,
+  ( Article
+      ( articleCategoryId,
+        articleContent,
+        articleCreated,
+        articleIsPublished,
+        articleTitle,
+        articleUserId
+      ),
+    ArticleId,
+    Category (categoryName, categoryParent),
+    CategoryId,
+    EntityField
+      ( ArticleCategoryId,
+        ArticleId,
+        ArticleIsPublished,
+        ArticleUserId,
+        CategoryId,
+        CategoryParent,
+        ImageArticleArticleId,
+        UserId
+      ),
+    ImageArticle (imageArticleImageId),
+    ImageId,
+    User,
   )
+import qualified Data.Aeson as A
 import Data.Function ((&))
 import qualified Data.Map as M
 import qualified Data.Text as T
-import Data.Time
+import Data.Time (Day)
 import Database.Esqueleto.Experimental
+  ( Entity (entityKey, entityVal),
+    OrderBy,
+    SqlExpr,
+    SqlPersistM,
+    Value,
+    from,
+    innerJoin,
+    just,
+    on,
+    orderBy,
+    select,
+    subSelectCount,
+    table,
+    union_,
+    val,
+    where_,
+    withRecursive,
+    (&&.),
+    (==.),
+    (^.),
+    type (:&) ((:&)),
+  )
 import qualified Database.Persist as P
 import GHC.Generics (Generic)
 
@@ -44,19 +83,19 @@ data FormatArticle = FormatArticle
   }
   deriving (Generic)
 
-instance ToJSON FormatArticle where
-  toJSON = genericToJSON defaultOptions {fieldLabelModifier = camelTo2 '_' . drop 8}
+instance A.ToJSON FormatArticle where
+  toJSON = A.genericToJSON A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . drop 8}
 
 data NestCategory = NestCategory CategoryId String NestCategory | Non
   deriving (Show)
 
-instance ToJSON NestCategory where
-  toJSON Non = object []
+instance A.ToJSON NestCategory where
+  toJSON Non = A.object []
   toJSON (NestCategory i name children) =
-    object
-      [ "id" .= i,
-        "category_name" .= T.pack name,
-        "category_sub" .= toJSON children
+    A.object
+      [ "id" A..= i,
+        "category_name" A..= T.pack name,
+        "category_sub" A..= A.toJSON children
       ]
 
 parseListToNest :: [P.Entity Category] -> NestCategory
@@ -76,7 +115,7 @@ getFormatArticle aId = runMaybeT $ do
   lift $ toFormatArticle (art, author, category)
 
 getFormatArticlesPagination ::
-  (SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> SqlExpr (Value Int) -> SqlExpr (Value Bool)) ->
+  (SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> SqlExpr (Value Bool)) ->
   (SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> SqlExpr (Value Int) -> [SqlExpr OrderBy]) ->
   Maybe Limit ->
   Int ->
@@ -99,7 +138,7 @@ getFormatArticlesPagination filters order limit_ maxLimit offset_ = do
           imArt <- from $ table @ImageArticle
           where_ (imArt ^. ImageArticleArticleId ==. art ^. ArticleId)
           pure imArt
-    where_ (filters art us cat countImages &&. art ^. ArticleIsPublished)
+    where_ (filters art us cat &&. art ^. ArticleIsPublished)
     orderBy (order art us cat countImages)
     pure (art, us, cat)
   mapM toFormatArticle selected
@@ -116,7 +155,7 @@ toFormatArticle (art, us, cat) = do
         )
         union_
         ( \self -> do
-            (cSelf :& c) <-
+            (_ :& c) <-
               from $
                 self
                   `innerJoin` table @Category

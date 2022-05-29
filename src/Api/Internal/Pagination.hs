@@ -19,17 +19,12 @@ module Api.Internal.Pagination
   )
 where
 
-import Control.Monad (when)
 import Control.Monad.IO.Class (MonadIO)
 import Data.Aeson (ToJSON (toJSON))
-import Data.Data (Typeable)
-import Data.Maybe (fromMaybe)
-import Database.Esqueleto.Experimental as E
+import qualified Database.Esqueleto.Experimental as E
 import Database.Esqueleto.Internal.Internal (SqlSelect)
 import GHC.Generics (Generic)
-import Servant
-import Servant.API.Modifiers (RequiredArgument)
-import Servant.Server.Internal.ErrorFormatter (MkContextWithErrorFormatter)
+import Servant (FromHttpApiData (parseUrlPiece), Get, QueryParam, type (:>))
 
 type GetWithPagination (t :: [*]) a = QueryParam "limit" Limit :> QueryParam "offset" Offset :> Get t (WithOffset a)
 
@@ -55,12 +50,12 @@ data WithOffset a = WithOffset {offset :: Offset, content :: [a]}
   deriving (Functor, Generic, Show, ToJSON)
 
 instance Foldable WithOffset where
-  foldMap f (WithOffset off list) = foldMap f list
+  foldMap f (WithOffset _ list) = foldMap f list
 
 instance Traversable WithOffset where
   traverse f (WithOffset off list) = WithOffset off <$> traverse f list
 
-setLimit :: Int -> Maybe Limit -> SqlQuery ()
+setLimit :: Int -> Maybe Limit -> E.SqlQuery ()
 setLimit maxLimit lim =
   E.limit . fromIntegral $
     maybe
@@ -68,7 +63,7 @@ setLimit maxLimit lim =
       (\x -> if unLimit x > maxLimit then maxLimit else unLimit x)
       lim
 
-setOffset :: Maybe Offset -> SqlQuery ()
+setOffset :: Maybe Offset -> E.SqlQuery ()
 setOffset = maybe (pure ()) (E.offset . fromIntegral . unOffset)
 
 selectPagination ::
@@ -76,11 +71,11 @@ selectPagination ::
   Maybe Limit ->
   Maybe Offset ->
   Int ->
-  SqlQuery a ->
-  SqlPersistT m (WithOffset r)
+  E.SqlQuery a ->
+  E.SqlPersistT m (WithOffset r)
 selectPagination lim off maxLimit q =
   WithOffset (newOffset lim off maxLimit)
-    <$> ( select $ do
+    <$> ( E.select $ do
             r <- q
             setOffset off
             setLimit maxLimit lim

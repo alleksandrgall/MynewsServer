@@ -4,11 +4,39 @@
 
 module Api.Article.Filters where
 
-import Api.Internal.Pagination
+import Api.Internal.Pagination (GetWithPagination)
 import DB.Scheme
-import Data.Time
+  ( Article,
+    Category,
+    CategoryId,
+    EntityField
+      ( ArticleContent,
+        ArticleCreated,
+        ArticleTitle,
+        CategoryId,
+        CategoryName,
+        UserName
+      ),
+    User,
+  )
+import Data.Time (Day)
 import Database.Esqueleto.Experimental
-import Servant
+  ( Entity,
+    OrderBy,
+    SqlExpr,
+    Value,
+    asc,
+    like,
+    val,
+    (%),
+    (++.),
+    (<.),
+    (==.),
+    (>.),
+    (^.),
+    (||.),
+  )
+import Servant (FromHttpApiData (parseUrlPiece), QueryParam, type (:>))
 
 type GetWithFilters (t :: [*]) a =
   QueryParam "created_since" Day :> QueryParam "created_until" Day :> QueryParam "created_at" Day

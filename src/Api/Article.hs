@@ -9,32 +9,85 @@
 module Api.Article where
 
 import Api.Article.Filters
+  ( GetWithFilters,
+    SortBy,
+    authorNameF,
+    categoryIdF_,
+    contentHasF,
+    createdAtF,
+    createdSinceF,
+    createdUntilF,
+    maybeFilter,
+    maybeSort,
+    searchF,
+    sortByF_,
+    titleHasF,
+  )
 import Api.Article.Get
+  ( FormatArticle,
+    getFormatArticle,
+    getFormatArticlesPagination,
+  )
 import Api.Internal.Auth (articleBelongsToUser, userAtLeastAuthor_)
 import Api.Internal.ImageManager
-import Api.Internal.Optional
-import Api.Internal.Pagination (GetWithPagination, Limit, Offset, WithOffset)
-import App (App, Auth (Auth), askPaginationLimit, runDB)
+  ( DeleteStatus (deleteStatus),
+    deleteImagesArticle,
+    saveAndInsertImages,
+  )
+import Api.Internal.Optional (MaybeSetter (..), setsMaybe)
+import Api.Internal.Pagination (Limit, Offset, WithOffset)
+import App.App (App, askPaginationLimit, runDB)
+import App.Auth (Auth (Auth))
 import Control.Applicative ((<|>))
 import Control.Monad (unless, void, when)
 import Control.Monad.IO.Class (liftIO)
 import DB.Scheme
-import Data.Aeson hiding (Value)
-import Data.Bifunctor (Bifunctor (bimap))
+  ( Article (Article),
+    ArticleId,
+    Category,
+    CategoryId,
+    ImageArticle (ImageArticle),
+    ImageId,
+    Key (CategoryKey),
+    UserId,
+  )
+import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
-import Data.Int (Int64)
-import qualified Data.Map as M
 import Data.Maybe (isNothing)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
-import Data.Time
-import Database.Esqueleto.Experimental hiding (isNothing)
+import Data.Time (Day, UTCTime (utctDay), getCurrentTime)
+import Database.Esqueleto.Experimental
+  ( BackendKey (SqlBackendKey),
+    (&&.),
+  )
 import qualified Database.Persist as P
-import Database.Persist.Sql (SqlPersistM)
 import GHC.Generics (Generic)
-import Katip (Severity (EmergencyS, InfoS), katipAddContext, katipAddNamespace, logFM, logTM, sl)
+import qualified Katip as K
 import Servant
+  ( AuthProtect,
+    Capture,
+    DeleteAccepted,
+    HasServer (ServerT),
+    JSON,
+    PostAccepted,
+    Proxy (..),
+    PutCreated,
+    QueryParams,
+    ServerError (errReasonPhrase),
+    err400,
+    err500,
+    throwError,
+    type (:<|>) (..),
+    type (:>),
+  )
 import Servant.Multipart
+  ( FromMultipart (..),
+    Mem,
+    MultipartData (files),
+    MultipartForm,
+    lookupInput,
+  )
 import qualified Text.Read as T
 
 type ArticleApi =
@@ -65,11 +118,11 @@ data IncomingArticle = IncomingArticle
   }
   deriving (Show, Generic)
 
-instance FromJSON IncomingArticle where
-  parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_' . drop 8}
+instance A.FromJSON IncomingArticle where
+  parseJSON = A.genericParseJSON A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . drop 8}
 
 instance FromMultipart Mem IncomingArticle where
-  fromMultipart form = (lookupInput "article" form >>= eitherDecode . LBS.fromStrict . encodeUtf8) <|> parseMultipart
+  fromMultipart form = (lookupInput "article" form >>= A.eitherDecode . LBS.fromStrict . encodeUtf8) <|> parseMultipart
     where
       parseMultipart =
         IncomingArticle <$> (T.unpack <$> lookupInput "title" form)
@@ -86,7 +139,7 @@ incomingArticleToDbArticle IncomingArticle {..} uId = do
 
 create :: Auth a -> MultipartData Mem -> App FormatArticle
 create (Auth u) form = do
-  logFM InfoS "Creating an article"
+  K.logFM K.InfoS "Creating an article"
   userAtLeastAuthor_ u
   case fromMultipart form of
     Left e -> throwError err400 {errReasonPhrase = "Absent or incomplete article content. Error: " ++ e}
@@ -98,45 +151,34 @@ create (Auth u) form = do
         aId <- P.insert dbArticle
         mapM_ (P.insert . ImageArticle aId) imageIds
         return aId
-      katipAddContext (sl "article_id" aId) $
-        logFM InfoS "Article created"
+      K.katipAddContext (K.sl "article_id" aId) $
+        K.logFM K.InfoS "Article created"
       maybeFormatArt <- runDB $ getFormatArticle aId
       maybe
-        ( $(logTM) EmergencyS "DB is unstable."
+        ( $(K.logTM) K.EmergencyS "DB is unstable."
             >> throwError err500 {errReasonPhrase = "Critical error"}
         )
         return
         maybeFormatArt
 
 -- Altering article by adding pictures or changing non picture fields
-instance FromMultipart Mem [MaybeSetter Article] where
-  fromMultipart form =
-    Right
-      [ MaybeSetter (ArticleTitle, lookupF (Just . T.unpack) "title"),
-        MaybeSetter (ArticleCategoryId, lookupF (fmap (CategoryKey . SqlBackendKey) . T.readMaybe . T.unpack) "category_id"),
-        MaybeSetter (ArticleContent, lookupF (Just . T.unpack) "content"),
-        MaybeSetter (ArticleIsPublished, lookupF (T.readMaybe . T.unpack) "is_published")
-      ]
-    where
-      lookupF f name = either (const Nothing) f (lookupInput name form)
-
 alterAdd :: Auth a -> ArticleId -> MultipartData Mem -> App FormatArticle
 alterAdd (Auth u) aId form = do
-  katipAddContext (sl "article_id" aId) $ do
-    logFM InfoS "Altering an article"
+  K.katipAddContext (K.sl "article_id" aId) $ do
+    K.logFM K.InfoS "Altering an article"
     articleBelongsToUser u aId
     case fromMultipart form of
-      Left e -> throwError err500 {errReasonPhrase = "Unable to parse setters."}
+      Left _ -> throwError err500 {errReasonPhrase = "Unable to parse setters."}
       Right setters -> do
         let isEmptySetters = all (\(MaybeSetter x) -> isNothing . snd $ x) setters
             isEmptyImages = null (files form)
         when (null (files form) && isEmptySetters) $ throwError err400 {errReasonPhrase = "Nothing to be set."}
         unless isEmptyImages $ void $ saveAndInsertImages (files form) (void . P.insert . ImageArticle aId)
         unless isEmptySetters $ runDB $ P.update aId (setsMaybe setters)
-        logFM InfoS "Article altered"
+        K.logFM K.InfoS "Article altered"
         maybeFormatArt <- runDB $ getFormatArticle aId
         maybe
-          ( $(logTM) EmergencyS "DB is unstable."
+          ( $(K.logTM) K.EmergencyS "DB is unstable."
               >> throwError err500 {errReasonPhrase = "Critical error"}
           )
           return
@@ -146,11 +188,11 @@ alterAdd (Auth u) aId form = do
 
 alterDelete :: Auth a -> ArticleId -> [ImageId] -> App DeleteStatus
 alterDelete (Auth u) aId imIds = do
-  katipAddContext (sl "article_id" aId) $ do
-    logFM InfoS "Deleting images form article"
+  K.katipAddContext (K.sl "article_id" aId) $ do
+    K.logFM K.InfoS "Deleting images form article"
     articleBelongsToUser u aId
     delStatus <- deleteImagesArticle imIds aId
-    katipAddContext (sl "delete_success" (deleteStatus delStatus)) $ logFM InfoS "Images deleted" >> return delStatus
+    K.katipAddContext (K.sl "delete_success" (deleteStatus delStatus)) $ K.logFM K.InfoS "Images deleted" >> return delStatus
 
 -- Getting article with filters, search and sort
 
@@ -168,25 +210,25 @@ getA ::
   Maybe Offset ->
   App (WithOffset FormatArticle)
 getA createdSince createdUntil createdAt authorName categoryId_ titleHas contentHas searchStr sortBy_ lim off = do
-  katipAddContext
-    ( sl "created_since" createdSince <> sl "created_until" createdUntil
-        <> sl "created_at" createdAt
-        <> sl "author_name" authorName
-        <> sl "category_id" categoryId_
-        <> sl "title_has" titleHas
-        <> sl "content_has" contentHas
-        <> sl "search_string" searchStr
-        <> sl "sort_by" (show sortBy_)
-        <> sl "limit" lim
-        <> sl "offset" off
+  K.katipAddContext
+    ( K.sl "created_since" createdSince <> K.sl "created_until" createdUntil
+        <> K.sl "created_at" createdAt
+        <> K.sl "author_name" authorName
+        <> K.sl "category_id" categoryId_
+        <> K.sl "title_has" titleHas
+        <> K.sl "content_has" contentHas
+        <> K.sl "search_string" searchStr
+        <> K.sl "sort_by" (show sortBy_)
+        <> K.sl "limit" lim
+        <> K.sl "offset" off
     )
     $ do
-      logFM InfoS "Sending articles"
+      K.logFM K.InfoS "Sending articles"
       maxLim <- askPaginationLimit
       articles <-
         runDB $
           getFormatArticlesPagination
-            ( \art user_ cat imageNum ->
+            ( \art user_ cat ->
                 maybeFilter createdSince (createdSinceF art)
                   &&. maybeFilter createdUntil (createdUntilF art)
                   &&. maybeFilter createdAt (createdAtF art)
@@ -202,4 +244,4 @@ getA createdSince createdUntil createdAt authorName categoryId_ titleHas content
             lim
             maxLim
             off
-      katipAddContext (sl "article_num" (length articles)) $ logFM InfoS "Articles sent" >> return articles
+      K.katipAddContext (K.sl "article_num" (length articles)) $ K.logFM K.InfoS "Articles sent" >> return articles

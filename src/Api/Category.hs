@@ -1,31 +1,67 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Api.Category where
 
-import Api.Internal.Auth
-import Api.Internal.Optional
-import Api.Internal.Pagination
-import App
-import Control.Exception (Exception, SomeException (SomeException))
+import Api.Internal.Auth (userIsAdmin_)
+import Api.Internal.Optional (MaybeSetter (MaybeSetter), QParam (QParam), allNothing, setsMaybe)
+import Api.Internal.Pagination (GetWithPagination, Limit, Offset, WithOffset, selectPagination)
+import App.App (App, askPaginationLimit, runDB)
+import App.Auth (Auth (..))
 import Control.Monad (unless, when)
-import Control.Monad.Catch hiding (Handler)
+import Control.Monad.Catch
+  ( Exception (fromException),
+    MonadCatch (catch),
+    MonadThrow (..),
+    SomeException,
+  )
 import Control.Monad.Except (MonadError)
-import Control.Monad.IO.Class (liftIO)
 import DB.Scheme
-import Data.Maybe (fromMaybe, isJust, isNothing)
+  ( Category (..),
+    CategoryId,
+    EntityField (CategoryName, CategoryParent),
+  )
+import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
-import Database.Esqueleto.Experimental hiding (Nothing, isNothing)
+import Database.Esqueleto.Experimental
+  ( Entity,
+    PersistStoreRead (get),
+    PersistStoreWrite (insert),
+    from,
+    select,
+    table,
+    val,
+    where_,
+    (&&.),
+    (==.),
+    (^.),
+  )
 import qualified Database.Persist.Sql as P
 import Katip (Severity (InfoS), katipAddContext, logFM, sl)
 import Servant
+  ( AuthProtect,
+    Capture,
+    FromHttpApiData (parseUrlPiece),
+    HasServer (ServerT),
+    JSON,
+    NoContent (..),
+    PostNoContent,
+    Proxy (..),
+    Put,
+    QueryParam,
+    QueryParam',
+    Required,
+    ServerError (errReasonPhrase),
+    Strict,
+    err400,
+    throwError,
+    type (:<|>) (..),
+    type (:>),
+  )
 import SqlException (SqlException (NotExists))
 
 type CategoryApi =

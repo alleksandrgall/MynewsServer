@@ -18,11 +18,40 @@
 module DB.Scheme where
 
 import Data.Aeson
+  ( KeyValue ((.=)),
+    Options (fieldLabelModifier),
+    ToJSON (toJSON),
+    camelTo2,
+    defaultOptions,
+    genericToJSON,
+    object,
+  )
 import qualified Data.ByteString as BS
-import Data.Time
-import Database.Esqueleto.Experimental
+import Data.Time (Day)
+import Database.Persist
+  ( Entity,
+    FieldDef
+      ( fieldAttrs,
+        fieldCascade,
+        fieldComments,
+        fieldDB,
+        fieldGenerated,
+        fieldHaskell,
+        fieldIsImplicitIdColumn,
+        fieldReference,
+        fieldSqlType,
+        fieldStrict,
+        fieldType
+      ),
+    entityIdToJSON,
+  )
 import Database.Persist.TH
-import GHC.Exts (fromList)
+  ( mkMigrate,
+    mkPersist,
+    persistLowerCase,
+    share,
+    sqlSettings,
+  )
 import GHC.Generics (Generic)
 
 {-

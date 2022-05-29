@@ -15,23 +15,69 @@ module Api.Internal.ImageManager
 where
 
 import App.App
-import Control.Monad (foldM, void, when)
+  ( App,
+    AppT,
+    askImageRoot,
+    askMaxImageSize,
+    askMaxImagesUpload,
+    runDB,
+  )
+import Control.Monad (foldM, when)
 import Control.Monad.Catch
-import Control.Monad.Except (MonadTrans (lift), throwError)
+  ( Exception,
+    MonadCatch (catch),
+    MonadThrow (..),
+    SomeException,
+    handle,
+    onException,
+  )
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import DB.Scheme
+  ( ArticleId,
+    EntityField (ImageArticleArticleId, ImageArticleImageId, ImageId),
+    Image (imagePath),
+    ImageArticle,
+    ImageId,
+  )
 import Data.Aeson
+  ( Options (fieldLabelModifier),
+    ToJSON (toJSON),
+    camelTo2,
+    defaultOptions,
+    genericToJSON,
+  )
 import qualified Data.ByteString.Lazy as LBS
 import Data.Function ((&))
 import qualified Data.Text as T
 import Data.Time (UTCTime (utctDay), getCurrentTime, toGregorian)
 import Database.Esqueleto.Experimental
+  ( Entity (entityKey, entityVal),
+    SqlPersistM,
+    SqlPersistT,
+    from,
+    innerJoin,
+    on,
+    select,
+    table,
+    val,
+    where_,
+    (==.),
+    (^.),
+    type (:&) ((:&)),
+  )
 import qualified Database.Persist.Sql as P hiding ((==.))
 import GHC.Generics (Generic)
-import Katip (Severity (EmergencyS, ErrorS), katipAddContext, katipAddNamespace, logFM, sl)
-import Katip.Monadic (logTM)
+import qualified Katip as K
 import Servant
+  ( ServerError (errReasonPhrase),
+    err413,
+    err415,
+    throwError,
+  )
 import Servant.Multipart
+  ( FileData (fdFileCType, fdFileName, fdPayload),
+    Mem,
+  )
 import System.Directory (createDirectoryIfMissing, removeFile)
 
 saveAndInsertImages :: [FileData Mem] -> (ImageId -> SqlPersistM ()) -> App [ImageId]
@@ -60,7 +106,7 @@ saveAndInsertImages fds inserter = do
           fds
   runDB $ do
     fls <- insertDB
-    liftIO $ onException (mapM (\(_, fp, bs) -> LBS.writeFile fp bs) fls) (mapM (\(_, fp, _) -> removeFile fp) fls)
+    liftIO $ onException (mapM_ (\(_, fp, bs) -> LBS.writeFile fp bs) fls) (mapM_ (\(_, fp, _) -> removeFile fp) fls)
     return $ map (\(imId, _, _) -> imId) fls
 
 data DeleteException = DeleteException SomeException [ImageId] deriving (Show)
@@ -114,8 +160,8 @@ deleteImagesArticle imagesToDelete aId = do
     ioExceptHandler ims = \se -> throwM $ DeleteException se ims
     handleDeleteException :: (MonadThrow m, MonadIO m) => DeleteException -> AppT m DeleteStatus
     handleDeleteException (DeleteException se ims) =
-      katipAddContext (sl "delete_images" ims <> sl "deleting_error" (show se)) $ do
-        logFM ErrorS "Not all of the requested images where deleted."
+      K.katipAddContext (K.sl "delete_images" ims <> K.sl "deleting_error" (show se)) $ do
+        K.logFM K.ErrorS "Not all of the requested images where deleted."
         return $ DeleteStatus False ims
 
 --Query for saving image data to, generating filepath using newly optaioned image id

@@ -1,22 +1,24 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module App.Auth where
 
-import Control.Monad (guard, unless)
+import Control.Monad (guard)
 import Control.Monad.IO.Class (liftIO)
 import Crypto.KDF.BCrypt (validatePassword)
-import DB.Scheme
+import DB.Scheme (Unique (UniqueUserName), User (userPasswordHash))
 import qualified Data.ByteString as BS
 import Data.ByteString.Base64 (decodeLenient)
 import Data.Text (unpack)
 import Data.Text.Encoding (decodeUtf8)
 import Data.Word8 (isSpace, toLower, _colon)
 import Database.Persist.Sql
+  ( Entity (entityVal),
+    PersistUniqueRead (getBy),
+    SqlPersistM,
+  )
 import Network.HTTP.Types (Header)
 import qualified Network.Wai as W
 import Servant
@@ -57,7 +59,7 @@ authenticate (username, pass) runDB onFail = do
       let validationResult = validatePassword pass (userPasswordHash . entityVal $ ent)
       if validationResult then return ent else onFail
 
-adminAuthHandler :: (forall a. SqlPersistM a -> IO a) -> AuthHandler W.Request (Auth Admin)
+adminAuthHandler :: (forall a. SqlPersistM a -> IO a) -> AuthHandler W.Request (Auth 'Admin)
 adminAuthHandler runDB = mkAuthHandler $ \req -> do
   credentials <- maybe (throwError err404) return $ getCredentials req
   Auth <$> authenticate credentials runDB (throwError err404)
@@ -65,7 +67,7 @@ adminAuthHandler runDB = mkAuthHandler $ \req -> do
 plzAuthHeader :: Header
 plzAuthHeader = ("WWW-Authenticate", "Basic realm=\"User Visible Realm\"")
 
-normalAuthHandler :: (forall a. SqlPersistM a -> IO a) -> AuthHandler W.Request (Auth Normal)
+normalAuthHandler :: (forall a. SqlPersistM a -> IO a) -> AuthHandler W.Request (Auth 'Normal)
 normalAuthHandler runDB = mkAuthHandler $ \req -> do
   credentials <-
     maybe
@@ -74,11 +76,11 @@ normalAuthHandler runDB = mkAuthHandler $ \req -> do
       $ getCredentials req
   Auth <$> authenticate credentials runDB (throwError err401 {errReasonPhrase = "Unauthorized"})
 
-type instance AuthServerData (AuthProtect "admin") = Auth Admin
+type instance AuthServerData (AuthProtect "admin") = Auth 'Admin
 
-type instance AuthServerData (AuthProtect "normal") = Auth Normal
+type instance AuthServerData (AuthProtect "normal") = Auth 'Normal
 
-type AuthContext = '[AuthHandler W.Request (Auth Admin), AuthHandler W.Request (Auth Normal)]
+type AuthContext = '[AuthHandler W.Request (Auth 'Admin), AuthHandler W.Request (Auth 'Normal)]
 
 authContext :: (forall a. SqlPersistM a -> IO a) -> Context AuthContext
 authContext runDB = adminAuthHandler runDB :. normalAuthHandler runDB :. EmptyContext

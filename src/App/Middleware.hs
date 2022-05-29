@@ -5,7 +5,7 @@
 
 module App.Middleware where
 
-import App.App (AppConfig (logConfig), LogConfig (logContext, logEnv, logNamespace))
+import App.App (LogConfig (logContext, logEnv, logNamespace))
 import Control.Monad.Reader (MonadIO (..), MonadReader (ask, local), ReaderT (..), asks)
 import Data.Aeson ((.=))
 import qualified Data.Aeson as A
@@ -109,7 +109,7 @@ katipMiddleware sev baseApp req respRecieved =
         K.logFM sev "Reponse sent"
         respRecieved resp
 
-mkApplicationK :: (AppConfig -> W.Application) -> (AppConfig -> ApplicationK)
-mkApplicationK f appConfig req respReceived = do
+mkApplicationK :: (LogConfig -> W.Application) -> ApplicationK
+mkApplicationK f req respReceived = do
   localLogConfig <- ask
-  liftIO $ f (appConfig {logConfig = localLogConfig}) req (flip runReaderT localLogConfig . unKatipM . respReceived)
+  liftIO $ f localLogConfig req (flip runReaderT localLogConfig . unKatipM . respReceived)

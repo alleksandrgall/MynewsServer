@@ -1,26 +1,31 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Api.Image where
 
-import App
+import App.App (App, runDB)
 import Control.Monad.IO.Class (liftIO)
 import DB.Scheme (Image (imageMime, imagePath), ImageId)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
 import Data.ByteString.Lazy (fromStrict)
 import Data.Data (Typeable)
-import Data.List.NonEmpty
 import Data.String (IsString (fromString))
 import qualified Database.Persist.Sql as P
-import GHC.TypeLits (KnownSymbol)
-import Network.HTTP.Media (MediaType, RenderHeader (renderHeader), (//))
-import qualified Network.Wai as W
 import Servant
-import Servant.API.ContentTypes (AllCTRender (handleAcceptH), AllMime (allMime))
+  ( Accept (contentType),
+    Capture,
+    Get,
+    HasServer (ServerT),
+    MimeRender (..),
+    ServerError (errReasonPhrase),
+    err400,
+    throwError,
+    type (:>),
+  )
+import Servant.API.ContentTypes (AllCTRender (handleAcceptH))
 
 data WithCT = WithCT {header :: BS.ByteString, content :: BS.ByteString}
 
@@ -30,7 +35,7 @@ instance AllCTRender '[IMAGE] WithCT where
 data IMAGE deriving (Typeable)
 
 instance MimeRender IMAGE BS.ByteString where
-  mimeRender _ content = fromStrict content
+  mimeRender _ = fromStrict
 
 instance Accept IMAGE where
   contentType _ = ""
@@ -48,14 +53,4 @@ getI' imId = do
     Just image -> do
       let contentTypeHeader = imageMime image
       imageBytes <- liftIO $ BS.readFile (imagePath image)
-      return $ WithCT (fromString contentTypeHeader) imageBytes
-
-getI :: ImageId -> App (Headers '[Header "Content-Type" String] BS.ByteString)
-getI imId = do
-  maybeImage <- runDB $ P.get imId
-  case maybeImage of
-    Nothing -> throwError err400 {errReasonPhrase = "No such image"}
-    Just image -> do
-      let contentTypeHeader = imageMime image
-      imageBytes <- liftIO $ BS.readFile (imagePath image)
-      return $ addHeader contentTypeHeader $ Base64.encode imageBytes
+      return $ WithCT (fromString contentTypeHeader) $ Base64.encode imageBytes

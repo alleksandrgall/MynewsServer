@@ -4,36 +4,44 @@ module Api.Internal.Auth where
 
 import App.App (App, runDB)
 import Control.Monad (unless)
-import Control.Monad.Except (throwError)
-import DB.Scheme (Article (Article, articleUserId), ArticleId, User (User, userIsAdmin, userIsAuthor, userName))
+import DB.Scheme (Article (Article, articleUserId), ArticleId, User (userIsAdmin, userIsAuthor))
 import Data.Function ((&))
 import Database.Persist
-import Katip
+  ( Entity (entityKey, entityVal),
+    PersistStoreRead (get),
+  )
+import qualified Katip as K
 import Servant
+  ( ServerError (errReasonPhrase),
+    err400,
+    err403,
+    err404,
+    throwError,
+  )
 
 userIsAdmin_ :: Entity User -> App ()
 userIsAdmin_ u =
-  katipAddContext (sl "user_id" (entityKey u)) $
-    katipAddNamespace "Auth admin" $ do
+  K.katipAddContext (K.sl "user_id" (entityKey u)) $
+    K.katipAddNamespace "Auth admin" $ do
       unless (u & entityVal & userIsAdmin) $ throwError err404
-      logFM InfoS "Auth success"
+      K.logFM K.InfoS "Auth success"
 
 userAtLeastAuthor_ :: Entity User -> App ()
 userAtLeastAuthor_ u =
-  katipAddContext (sl "user_id" (entityKey u)) $
-    katipAddNamespace "Auth author" $ do
+  K.katipAddContext (K.sl "user_id" (entityKey u)) $
+    K.katipAddNamespace "Auth author" $ do
       unless ((u & entityVal & userIsAuthor) || (u & entityVal & userIsAdmin)) $
         throwError $ err403 {errReasonPhrase = "Author status required."}
-      logFM InfoS "Auth success"
+      K.logFM K.InfoS "Auth success"
 
 articleBelongsToUser :: Entity User -> ArticleId -> App ()
 articleBelongsToUser u aId = do
-  katipAddContext (sl "user_id" (entityKey u)) $
-    katipAddNamespace "Auth article owner" $ do
+  K.katipAddContext (K.sl "user_id" (entityKey u)) $
+    K.katipAddNamespace "Auth article owner" $ do
       maybeArt <- runDB $ get aId
       case maybeArt of
         Nothing -> throwError err400 {errReasonPhrase = "No article with id " ++ show aId}
         Just Article {..} -> do
           unless ((u & entityKey) == articleUserId || (u & entityVal & userIsAdmin)) $
             throwError $ err403 {errReasonPhrase = "Provided user is not an author of that article."}
-          logFM InfoS "Auth success"
+          K.logFM K.InfoS "Auth success"

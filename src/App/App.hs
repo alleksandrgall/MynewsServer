@@ -9,14 +9,13 @@
 
 module App.App where
 
-import App.Auth
+import App.Auth (AuthContext, authContext)
 import Control.Concurrent (killThread)
 import Control.Exception (throwIO)
 import Control.Monad.Catch (Exception, MonadCatch, MonadThrow, bracket)
 import Control.Monad.Except (MonadError (..), MonadIO (..))
 import Control.Monad.Logger (NoLoggingT (runNoLoggingT))
 import Control.Monad.Reader (MonadReader (local), ReaderT (..), asks)
-import DB.Scheme (User (User))
 import Data.Char (toLower)
 import qualified Data.Configurator as C
 import Data.Configurator.Types (AutoConfig (onError), Config, Configured (..), Value (String))
@@ -25,11 +24,10 @@ import Data.String (IsString (fromString))
 import qualified Data.Text as T
 import Data.Text.Lazy.Builder (toLazyText)
 import qualified Data.Text.Lazy.IO as T
-import Database.Persist.Postgresql (Entity, SqlPersistM, liftSqlPersistMPool, withPostgresqlPool)
+import Database.Persist.Postgresql (SqlPersistM, liftSqlPersistMPool, withPostgresqlPool)
 import qualified Katip as K
 import Servant
   ( Application,
-    Context (EmptyContext, (:.)),
     Handler,
     HasServer (ServerT, hoistServerWithContext),
     Proxy (..),
@@ -52,7 +50,7 @@ newtype AppT m a = AppT {unApp :: ReaderT AppConfig m a}
     )
 
 instance (MonadError ServerError m) => MonadError ServerError (AppT m) where
-  throwError e = AppT . ReaderT $ \r -> throwError e
+  throwError e = AppT . ReaderT $ \_ -> throwError e
   catchError m h = AppT . ReaderT $ \r -> catchError (flip runReaderT r . unApp $ m) (flip runReaderT r . unApp . h)
 
 type App = AppT Handler
@@ -75,8 +73,8 @@ instance Exception FatalConfigError
 mkAppConfig :: Config -> IO AppConfig
 mkAppConfig c = do
   scrb <- mkScribeFromConfig c
-  logEnv <- K.registerScribe "live scribe" scrb K.defaultScribeSettings =<< K.initLogEnv "metaLampServer" "main"
-  return $ AppConfig c (LogConfig logEnv mempty mempty)
+  appScribeLogEnv <- K.registerScribe "live scribe" scrb K.defaultScribeSettings =<< K.initLogEnv "metaLampServer" "main"
+  return $ AppConfig c (LogConfig appScribeLogEnv mempty mempty)
 
 withAppConfig :: (AppConfig -> IO ()) -> IO ()
 withAppConfig f =
@@ -89,10 +87,7 @@ withAppConfig f =
         appConf <- mkAppConfig conf
         return (appConf, threadId)
     )
-    ( \(appConf, i) -> do
-        K.closeScribes (logEnv . logConfig $ appConf)
-        killThread i
-    )
+    (\(appConf, i) -> K.closeScribes (logEnv . logConfig $ appConf) >> killThread i)
     (f . fst)
 
 askConStr :: (MonadReader AppConfig m, MonadIO m) => m String
