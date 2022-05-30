@@ -53,40 +53,38 @@ type GetWithFilters (t :: [*]) a =
 maybeFilter :: Maybe a -> (a -> SqlExpr (Value Bool)) -> SqlExpr (Value Bool)
 maybeFilter filterParam f = maybe (val True) f filterParam
 
-createdSinceF :: SqlExpr (Entity Article) -> Day -> SqlExpr (Value Bool)
-createdSinceF art d = art ^. ArticleCreated >. val d
+createdSinceF :: SqlExpr (Entity Article) -> Maybe Day -> SqlExpr (Value Bool)
+createdSinceF art d = maybeFilter d (\d' -> art ^. ArticleCreated >. val d')
 
-createdUntilF :: SqlExpr (Entity Article) -> Day -> SqlExpr (Value Bool)
-createdUntilF art d = art ^. ArticleCreated <. val d
+createdUntilF :: SqlExpr (Entity Article) -> Maybe Day -> SqlExpr (Value Bool)
+createdUntilF art d = maybeFilter d (\d' -> art ^. ArticleCreated <. val d')
 
-createdAtF :: SqlExpr (Entity Article) -> Day -> SqlExpr (Value Bool)
-createdAtF art d = art ^. ArticleCreated ==. val d
+createdAtF :: SqlExpr (Entity Article) -> Maybe Day -> SqlExpr (Value Bool)
+createdAtF art d = maybeFilter d (\d' -> art ^. ArticleCreated ==. val d')
 
-authorNameF :: SqlExpr (Entity User) -> String -> SqlExpr (Value Bool)
-authorNameF user_ login = user_ ^. UserName ==. val login
+authorNameF :: SqlExpr (Entity User) -> Maybe String -> SqlExpr (Value Bool)
+authorNameF user_ login = maybeFilter login (\login' -> user_ ^. UserName ==. val login')
 
-categoryIdF_ :: SqlExpr (Entity Category) -> CategoryId -> SqlExpr (Value Bool)
-categoryIdF_ cat catId = cat ^. CategoryId ==. val catId
+categoryIdF_ :: SqlExpr (Entity Category) -> Maybe CategoryId -> SqlExpr (Value Bool)
+categoryIdF_ cat catId = maybeFilter catId (\catId' -> cat ^. CategoryId ==. val catId')
 
-titleHasF :: SqlExpr (Entity Article) -> String -> SqlExpr (Value Bool)
-titleHasF art subStr = art ^. ArticleTitle `like` (%) ++. val subStr ++. (%)
+titleHasF :: SqlExpr (Entity Article) -> Maybe String -> SqlExpr (Value Bool)
+titleHasF art subStr = maybeFilter subStr (\subStr' -> art ^. ArticleTitle `like` (%) ++. val subStr' ++. (%))
 
-contentHasF :: SqlExpr (Entity Article) -> String -> SqlExpr (Value Bool)
-contentHasF art subStr = art ^. ArticleContent `like` (%) ++. val subStr ++. (%)
+contentHasF :: SqlExpr (Entity Article) -> Maybe String -> SqlExpr (Value Bool)
+contentHasF art subStr = maybeFilter subStr (\subStr' -> art ^. ArticleContent `like` (%) ++. val subStr' ++. (%))
 
-searchF :: SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> String -> SqlExpr (Value Bool)
-searchF art user_ cat subStr =
-  (art ^. ArticleContent `like` (%) ++. val subStr ++. (%)) ||. (user_ ^. UserName `like` (%) ++. val subStr ++. (%))
-    ||. (cat ^. CategoryName `like` (%) ++. val subStr ++. (%))
+searchF :: SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> Maybe String -> SqlExpr (Value Bool)
+searchF art user_ cat subStr = maybeFilter subStr $ \subStr' ->
+  (art ^. ArticleContent `like` (%) ++. val subStr' ++. (%)) ||. (user_ ^. UserName `like` (%) ++. val subStr' ++. (%))
+    ||. (cat ^. CategoryName `like` (%) ++. val subStr' ++. (%))
 
-maybeSort :: Maybe SortBy -> (SortBy -> [SqlExpr OrderBy]) -> [SqlExpr OrderBy]
-maybeSort sortParam f = maybe [] f sortParam
-
-sortByF_ :: SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> SqlExpr (Value Int) -> SortBy -> [SqlExpr OrderBy]
-sortByF_ art _ _ _ Date = [asc (art ^. ArticleCreated)]
-sortByF_ _ user_ _ _ Author = [asc (user_ ^. UserName)]
-sortByF_ _ _ cat _ Category_ = [asc (cat ^. CategoryName)]
-sortByF_ _ _ _ imageNum ImageNum = [asc imageNum]
+sortByF_ :: SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> SqlExpr (Value Int) -> Maybe SortBy -> [SqlExpr OrderBy]
+sortByF_ art _ _ _ (Just Date) = [asc (art ^. ArticleCreated)]
+sortByF_ _ user_ _ _ (Just Author) = [asc (user_ ^. UserName)]
+sortByF_ _ _ cat _ (Just Category_) = [asc (cat ^. CategoryName)]
+sortByF_ _ _ _ imageNum (Just ImageNum) = [asc imageNum]
+sortByF_ _ _ _ _ Nothing = []
 
 data SortBy = Date | Author | Category_ | ImageNum deriving (Show)
 

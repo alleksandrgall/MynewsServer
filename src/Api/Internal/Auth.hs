@@ -2,7 +2,7 @@
 
 module Api.Internal.Auth where
 
-import App.App (App, runDB)
+import App (App, runDB)
 import Control.Monad (unless)
 import DB.Scheme (Article (Article, articleUserId), ArticleId, User (userIsAdmin, userIsAuthor))
 import Data.Function ((&))

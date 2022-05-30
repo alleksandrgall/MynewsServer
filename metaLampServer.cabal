@@ -41,7 +41,6 @@ library
       App.Auth
       App.Middleware
       DB.Scheme
-      SqlException
   other-modules:
       Paths_metaLampServer
   hs-source-dirs:

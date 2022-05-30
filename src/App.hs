@@ -4,7 +4,7 @@
 module App (module X, serve_) where
 
 import App.App (App, AppConfig (logConfig), serveApp, withAppConfig)
-import App.App as X (App, askImageRoot, askMaxImageSize, askMaxImagesUpload, askPaginationLimit, runDB)
+import App.App as X (App, AppT, askImageRoot, askMaxImageSize, askMaxImagesUpload, askPaginationLimit, runDB)
 import App.Auth (AuthContext)
 import App.Auth as X (Auth (Auth))
 import App.Middleware (katipMiddleware, mkApplicationK, runApplicationK)

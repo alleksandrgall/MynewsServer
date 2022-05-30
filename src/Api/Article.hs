@@ -17,8 +17,6 @@ import Api.Article.Filters
     createdAtF,
     createdSinceF,
     createdUntilF,
-    maybeFilter,
-    maybeSort,
     searchF,
     sortByF_,
     titleHasF,
@@ -229,17 +227,17 @@ getA createdSince createdUntil createdAt authorName categoryId_ titleHas content
         runDB $
           getFormatArticlesPagination
             ( \art user_ cat ->
-                maybeFilter createdSince (createdSinceF art)
-                  &&. maybeFilter createdUntil (createdUntilF art)
-                  &&. maybeFilter createdAt (createdAtF art)
-                  &&. maybeFilter authorName (authorNameF user_)
-                  &&. maybeFilter categoryId_ (categoryIdF_ cat)
-                  &&. maybeFilter titleHas (titleHasF art)
-                  &&. maybeFilter contentHas (contentHasF art)
-                  &&. maybeFilter searchStr (searchF art user_ cat)
+                createdSinceF art createdSince
+                  &&. createdUntilF art createdUntil
+                  &&. createdAtF art createdAt
+                  &&. authorNameF user_ authorName
+                  &&. categoryIdF_ cat categoryId_
+                  &&. titleHasF art titleHas
+                  &&. contentHasF art contentHas
+                  &&. searchF art user_ cat searchStr
             )
             ( \art user_ cat imageNum ->
-                maybeSort sortBy_ (sortByF_ art user_ cat imageNum)
+                sortByF_ art user_ cat imageNum sortBy_
             )
             lim
             maxLim

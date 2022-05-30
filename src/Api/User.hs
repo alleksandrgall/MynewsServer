@@ -20,7 +20,7 @@ import Api.Internal.Pagination
 import App (App, askPaginationLimit, runDB)
 import App.Auth (Auth (Auth))
 import Control.Applicative ((<|>))
-import Control.Monad (unless, when)
+import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Crypto.KDF.BCrypt (hashPassword)
 import DB.Scheme
@@ -31,6 +31,7 @@ import DB.Scheme
     UserId,
   )
 import qualified Data.Aeson as A
+import Data.Bool (bool)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (isJust)
@@ -39,6 +40,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Time (UTCTime (utctDay), getCurrentTime)
 import Database.Esqueleto.Experimental hiding (get)
 import qualified Database.Persist as P
+import qualified Database.Persist.Sql as P
 import GHC.Generics (Generic)
 import Katip (Severity (InfoS), katipAddContext, logFM, sl)
 import Servant
@@ -116,8 +118,10 @@ create (Auth u) form = do
   case fromMultipart form of
     Left e -> throwError err400 {errReasonPhrase = e}
     Right incUser -> do
-      exists_ <- isUserExists (incomingName incUser)
-      when exists_ (throwError err400 {errReasonPhrase = "Username is already taken."})
+      either (\e -> throwError err400 {errReasonPhrase = e}) return
+        =<< ( runDB . runExceptT $ do
+                isUserExists $ incomingName incUser
+            )
       maybeAvId <- case lookupFile "avatar" form of
         Left _ -> return Nothing
         Right fd -> do
@@ -127,14 +131,16 @@ create (Auth u) form = do
       uId <- runDB $ insert dbU
       katipAddContext (sl "user_id" uId) $ logFM InfoS "User created" >> return uId
 
-isUserExists :: String -> App Bool
-isUserExists name = isJust <$> (runDB . getBy $ UniqueUserName name)
+isUserExists :: String -> ExceptT String P.SqlPersistM ()
+isUserExists name = ExceptT $ bool (Left "Username is already taken.") (Right ()) . isJust <$> getBy (UniqueUserName name)
 
 toAuthor :: Auth a -> String -> App NoContent
 toAuthor (Auth u) name = do
   userIsAdmin_ u
-  exists_ <- isUserExists name
-  unless exists_ (throwError err400 {errReasonPhrase = "No such user."})
+  either (\e -> throwError err400 {errReasonPhrase = e}) return
+    =<< ( runDB . runExceptT $ do
+            isUserExists name
+        )
   runDB $ P.updateWhere [UserName P.==. name] [UserIsAuthor P.=. True]
   katipAddContext (sl "user_name" name) $ logFM InfoS "User promoted to author" >> return NoContent
 

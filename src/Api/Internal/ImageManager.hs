@@ -14,7 +14,7 @@ module Api.Internal.ImageManager
   )
 where
 
-import App.App
+import App
   ( App,
     AppT,
     askImageRoot,

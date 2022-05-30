@@ -124,24 +124,29 @@ actuallyRunDb :: (MonadIO m) => String -> SqlPersistM a -> m a
 actuallyRunDb conStr x = liftIO . runNoLoggingT $
   withPostgresqlPool (fromString conStr) 1 $ \pool -> liftSqlPersistMPool x pool
 
-instance Configured K.Severity where
+--Newtypes for working around of orphan instance warning
+newtype MySeverity = MySeverity K.Severity
+
+instance Configured MySeverity where
   convert (String s) =
     case T.map toLower s of
-      "debug" -> Just K.DebugS
-      "info" -> Just K.InfoS
-      "warn" -> Just K.WarningS
-      "error" -> Just K.ErrorS
-      "notice" -> Just K.NoticeS
+      "debug" -> Just $ MySeverity K.DebugS
+      "info" -> Just $ MySeverity K.InfoS
+      "warn" -> Just $ MySeverity K.WarningS
+      "error" -> Just $ MySeverity K.ErrorS
+      "notice" -> Just $ MySeverity K.NoticeS
       _ -> Nothing
   convert _ = Nothing
 
-instance Configured K.Verbosity where
+newtype MyVerbosity = MyVerbosity K.Verbosity
+
+instance Configured MyVerbosity where
   convert (String s) =
     case T.map toLower s of
-      "v0" -> Just K.V0
-      "v1" -> Just K.V1
-      "v2" -> Just K.V2
-      "v3" -> Just K.V3
+      "v0" -> Just $ MyVerbosity K.V0
+      "v1" -> Just $ MyVerbosity K.V1
+      "v2" -> Just $ MyVerbosity K.V2
+      "v3" -> Just $ MyVerbosity K.V3
       _ -> Nothing
   convert _ = Nothing
 
@@ -162,7 +167,7 @@ mkScribeFromConfig cnf = return $ K.Scribe write finale permit
     write :: forall a. K.LogItem a => K.Item a -> IO ()
     write i = do
       out <- C.lookupDefault Stdout cnf "logOut"
-      verb <- C.lookupDefault K.V2 cnf "logVerb"
+      (MyVerbosity verb) <- C.lookupDefault (MyVerbosity K.V2) cnf "logVerb"
       case out of
         Silent -> return ()
         Stdout -> do
@@ -175,7 +180,7 @@ mkScribeFromConfig cnf = return $ K.Scribe write finale permit
     finale = return ()
     permit :: K.PermitFunc
     permit i = do
-      sev <- C.lookupDefault K.InfoS cnf "logLevel"
+      (MySeverity sev) <- C.lookupDefault (MySeverity K.InfoS) cnf "logLevel"
       K.permitItem sev i
 
 instance (MonadIO m) => K.Katip (AppT m) where
