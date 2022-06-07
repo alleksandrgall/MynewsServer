@@ -3,9 +3,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module App.Middleware where
+module Handlers.Katip.Middleware where
 
-import App.App (LogConfig (logContext, logEnv, logNamespace))
 import Control.Monad.Reader (MonadIO (..), MonadReader (ask, local), ReaderT (..), asks)
 import Data.Aeson ((.=))
 import qualified Data.Aeson as A
@@ -13,35 +12,33 @@ import Data.ByteString (ByteString)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 import GHC.Generics (Generic)
+import Handlers.Katip
 import qualified Katip as K
 import Network.HTTP.Types (HttpVersion, Method, Query, Status, queryToQueryText)
 import qualified Network.Wai as W
 
-newtype KatipM a = KatipM {unKatipM :: ReaderT LogConfig IO a}
+newtype KatipM a = KatipM {unKatipM :: ReaderT Handler IO a}
   deriving
     ( Functor,
       Applicative,
       Monad,
-      MonadReader LogConfig,
+      MonadReader Handler,
       MonadIO
     )
 
 instance K.Katip KatipM where
-  getLogEnv = asks logEnv
-  localLogEnv f (KatipM m) = KatipM $ local (\s -> s {logEnv = f $ logEnv s}) m
+  getLogEnv = asks (cLogEnv . hConfig)
+  localLogEnv f (KatipM m) = KatipM $ local (\s -> s {hConfig = (hConfig s) {cLogEnv = f . cLogEnv . hConfig $ s}}) m
 
 instance K.KatipContext KatipM where
-  getKatipContext = asks logContext
-  localKatipContext f (KatipM m) = KatipM (local (\s -> s {logContext = f $ logContext s}) m)
-  getKatipNamespace = asks logNamespace
-  localKatipNamespace f (KatipM m) = KatipM (local (\s -> s {logNamespace = f $ logNamespace s}) m)
+  getKatipContext = asks (cLogContexts . hConfig)
+  localKatipContext f (KatipM m) = KatipM $ local (\s -> s {hConfig = (hConfig s) {cLogContexts = f . cLogContexts . hConfig $ s}}) m
+  getKatipNamespace = asks (cLogNamespace . hConfig)
+  localKatipNamespace f (KatipM m) = KatipM $ local (\s -> s {hConfig = (hConfig s) {cLogNamespace = f . cLogNamespace . hConfig $ s}}) m
 
 type ApplicationK = W.Request -> (W.Response -> KatipM W.ResponseReceived) -> KatipM W.ResponseReceived
 
 type MiddlewareK = ApplicationK -> ApplicationK
-
-runApplicationK :: LogConfig -> ApplicationK -> W.Application
-runApplicationK appConf app req respReceived = flip runReaderT appConf . unKatipM $ app req (liftIO . respReceived)
 
 data Request = Request
   { requestHttpVersion :: HttpVersion,
@@ -109,7 +106,10 @@ katipMiddleware sev baseApp req respRecieved =
         K.logFM sev "Reponse sent"
         respRecieved resp
 
-mkApplicationK :: (LogConfig -> W.Application) -> ApplicationK
+mkApplicationK :: (Handler -> W.Application) -> ApplicationK
 mkApplicationK f req respReceived = do
   localLogConfig <- ask
   liftIO $ f localLogConfig req (flip runReaderT localLogConfig . unKatipM . respReceived)
+
+runApplicationK :: Handler -> ApplicationK -> W.Application
+runApplicationK logConf app req respReceived = flip runReaderT logConf . unKatipM $ app req (liftIO . respReceived)

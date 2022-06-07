@@ -35,6 +35,7 @@ dependencies:
 - persistent-template
 - configurator
 - transformers
+- transformers-base
 # postgresql-simple brings in the scope SqlError which is used for exception handling
 - postgresql-simple
 - monad-logger

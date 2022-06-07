@@ -15,7 +15,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module DB.Scheme where
+module Handlers.DB.Scheme where
 
 import Data.Aeson
   ( KeyValue ((.=)),

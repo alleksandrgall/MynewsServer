@@ -2,14 +2,14 @@
 
 module Api.Internal.Auth where
 
-import App (App, runDB)
 import Control.Monad (unless)
-import DB.Scheme (Article (Article, articleUserId), ArticleId, User (userIsAdmin, userIsAuthor))
 import Data.Function ((&))
 import Database.Persist
   ( Entity (entityKey, entityVal),
     PersistStoreRead (get),
   )
+import Handlers.App (App, runDB)
+import Handlers.DB.Scheme (Article (Article, articleUserId), ArticleId, User (userIsAdmin, userIsAuthor))
 import qualified Katip as K
 import Servant
   ( ServerError (errReasonPhrase),

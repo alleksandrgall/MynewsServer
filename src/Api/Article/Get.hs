@@ -14,32 +14,6 @@ where
 import Api.Internal.Pagination (Limit, Offset, WithOffset, selectPagination)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
-import DB.Scheme
-  ( Article
-      ( articleCategoryId,
-        articleContent,
-        articleCreated,
-        articleIsPublished,
-        articleTitle,
-        articleUserId
-      ),
-    ArticleId,
-    Category (categoryName, categoryParent),
-    CategoryId,
-    EntityField
-      ( ArticleCategoryId,
-        ArticleId,
-        ArticleIsPublished,
-        ArticleUserId,
-        CategoryId,
-        CategoryParent,
-        ImageArticleArticleId,
-        UserId
-      ),
-    ImageArticle (imageArticleImageId),
-    ImageId,
-    User,
-  )
 import qualified Data.Aeson as A
 import Data.Function ((&))
 import qualified Data.Map as M
@@ -70,6 +44,32 @@ import Database.Esqueleto.Experimental
   )
 import qualified Database.Persist as P
 import GHC.Generics (Generic)
+import Handlers.DB.Scheme
+  ( Article
+      ( articleCategoryId,
+        articleContent,
+        articleCreated,
+        articleIsPublished,
+        articleTitle,
+        articleUserId
+      ),
+    ArticleId,
+    Category (categoryName, categoryParent),
+    CategoryId,
+    EntityField
+      ( ArticleCategoryId,
+        ArticleId,
+        ArticleIsPublished,
+        ArticleUserId,
+        CategoryId,
+        CategoryParent,
+        ImageArticleArticleId,
+        UserId
+      ),
+    ImageArticle (imageArticleImageId),
+    ImageId,
+    User,
+  )
 
 data FormatArticle = FormatArticle
   { iArticleId :: ArticleId,

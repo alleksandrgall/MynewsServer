@@ -5,15 +5,15 @@
 
 module Api.Image where
 
-import App.App (App, runDB)
 import Control.Monad.IO.Class (liftIO)
-import DB.Scheme (Image (imageMime, imagePath), ImageId)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
 import Data.ByteString.Lazy (fromStrict)
 import Data.Data (Typeable)
 import Data.String (IsString (fromString))
 import qualified Database.Persist.Sql as P
+import Handlers.App (App, runDB)
+import Handlers.DB.Scheme (Image (imageMime, imagePath), ImageId)
 import Servant
   ( Accept (contentType),
     Capture,

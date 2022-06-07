@@ -14,14 +14,6 @@ module Api.Internal.ImageManager
   )
 where
 
-import App
-  ( App,
-    AppT,
-    askImageRoot,
-    askMaxImageSize,
-    askMaxImagesUpload,
-    runDB,
-  )
 import Control.Monad (foldM, when)
 import Control.Monad.Catch
   ( Exception,
@@ -32,13 +24,6 @@ import Control.Monad.Catch
     onException,
   )
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import DB.Scheme
-  ( ArticleId,
-    EntityField (ImageArticleArticleId, ImageArticleImageId, ImageId),
-    Image (imagePath),
-    ImageArticle,
-    ImageId,
-  )
 import Data.Aeson
   ( Options (fieldLabelModifier),
     ToJSON (toJSON),
@@ -67,6 +52,20 @@ import Database.Esqueleto.Experimental
   )
 import qualified Database.Persist.Sql as P hiding ((==.))
 import GHC.Generics (Generic)
+import Handlers.App
+  ( App,
+    askImageRoot,
+    askMaxImageSize,
+    askMaxImagesUpload,
+    runDB,
+  )
+import Handlers.DB.Scheme
+  ( ArticleId,
+    EntityField (ImageArticleArticleId, ImageArticleImageId, ImageId),
+    Image (imagePath),
+    ImageArticle,
+    ImageId,
+  )
 import qualified Katip as K
 import Servant
   ( ServerError (errReasonPhrase),
@@ -158,7 +157,7 @@ deleteImagesArticle imagesToDelete aId = do
       return (entityKey imageEnt)
     ioExceptHandler :: (MonadThrow m) => [ImageId] -> SomeException -> m a
     ioExceptHandler ims = \se -> throwM $ DeleteException se ims
-    handleDeleteException :: (MonadThrow m, MonadIO m) => DeleteException -> AppT m DeleteStatus
+    handleDeleteException :: DeleteException -> App DeleteStatus
     handleDeleteException (DeleteException se ims) =
       K.katipAddContext (K.sl "delete_images" ims <> K.sl "deleting_error" (show se)) $ do
         K.logFM K.ErrorS "Not all of the requested images where deleted."

@@ -34,21 +34,9 @@ import Api.Internal.ImageManager
   )
 import Api.Internal.Optional (MaybeSetter (..), setsMaybe)
 import Api.Internal.Pagination (Limit, Offset, WithOffset)
-import App.App (App, askPaginationLimit, runDB)
-import App.Auth (Auth (Auth))
 import Control.Applicative ((<|>))
 import Control.Monad (unless, void, when)
 import Control.Monad.IO.Class (liftIO)
-import DB.Scheme
-  ( Article (Article),
-    ArticleId,
-    Category,
-    CategoryId,
-    ImageArticle (ImageArticle),
-    ImageId,
-    Key (CategoryKey),
-    UserId,
-  )
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (isNothing)
@@ -61,6 +49,17 @@ import Database.Esqueleto.Experimental
   )
 import qualified Database.Persist as P
 import GHC.Generics (Generic)
+import Handlers.App (App, Auth (Auth), askPaginationLimit, runDB)
+import Handlers.DB.Scheme
+  ( Article (Article),
+    ArticleId,
+    Category,
+    CategoryId,
+    ImageArticle (ImageArticle),
+    ImageId,
+    Key (CategoryKey),
+    UserId,
+  )
 import qualified Katip as K
 import Servant
   ( AuthProtect,

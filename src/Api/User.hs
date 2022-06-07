@@ -17,19 +17,10 @@ import Api.Internal.Pagination
     WithOffset,
     selectPagination,
   )
-import App (App, askPaginationLimit, runDB)
-import App.Auth (Auth (Auth))
 import Control.Applicative ((<|>))
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Crypto.KDF.BCrypt (hashPassword)
-import DB.Scheme
-  ( EntityField (UserIsAuthor, UserName),
-    ImageId,
-    Unique (UniqueUserName),
-    User (..),
-    UserId,
-  )
 import qualified Data.Aeson as A
 import Data.Bool (bool)
 import qualified Data.ByteString as BS
@@ -42,6 +33,14 @@ import Database.Esqueleto.Experimental hiding (get)
 import qualified Database.Persist as P
 import qualified Database.Persist.Sql as P
 import GHC.Generics (Generic)
+import Handlers.App (App, Auth (..), askPaginationLimit, runDB)
+import Handlers.DB.Scheme
+  ( EntityField (UserIsAuthor, UserName),
+    ImageId,
+    Unique (UniqueUserName),
+    User (..),
+    UserId,
+  )
 import Katip (Severity (InfoS), katipAddContext, logFM, sl)
 import Servant
   ( AuthProtect,

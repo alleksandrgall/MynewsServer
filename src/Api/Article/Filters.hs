@@ -5,20 +5,6 @@
 module Api.Article.Filters where
 
 import Api.Internal.Pagination (GetWithPagination)
-import DB.Scheme
-  ( Article,
-    Category,
-    CategoryId,
-    EntityField
-      ( ArticleContent,
-        ArticleCreated,
-        ArticleTitle,
-        CategoryId,
-        CategoryName,
-        UserName
-      ),
-    User,
-  )
 import Data.Time (Day)
 import Database.Esqueleto.Experimental
   ( Entity,
@@ -35,6 +21,20 @@ import Database.Esqueleto.Experimental
     (>.),
     (^.),
     (||.),
+  )
+import Handlers.DB.Scheme
+  ( Article,
+    Category,
+    CategoryId,
+    EntityField
+      ( ArticleContent,
+        ArticleCreated,
+        ArticleTitle,
+        CategoryId,
+        CategoryName,
+        UserName
+      ),
+    User,
   )
 import Servant (FromHttpApiData (parseUrlPiece), QueryParam, type (:>))
 

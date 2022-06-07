@@ -1,0 +1,48 @@
+module App.Prod (parseConfig, withHandler) where
+
+import Control.Exception (Exception, throwIO)
+import Control.Monad.IO.Class (liftIO)
+import qualified Data.Configurator as C
+import qualified Data.Configurator.Types as C
+import Data.Int (Int64)
+import Handlers.App (App, Config (..), ConfigDefault, Handler (..))
+import qualified Handlers.DB as DB
+import qualified Handlers.Katip as L
+
+newtype FatalConfigError = FatalConfigError String deriving (Show)
+
+instance Exception FatalConfigError
+
+confImageRoot :: C.Config -> App String
+confImageRoot c = do
+  maybeVal <- liftIO . C.lookup c $ "imageRoot"
+  maybe (liftIO . throwIO $ FatalConfigError "Location for image storage is required") return maybeVal
+
+confMaxImageSize :: C.Config -> App (Maybe Int64)
+confMaxImageSize c = liftIO . C.lookup c $ "maxImageSize"
+
+confPaginationLimit :: C.Config -> App (Maybe Int)
+confPaginationLimit c = liftIO . C.lookup c $ "paginationLimit"
+
+confMaxImagesUpload :: C.Config -> App (Maybe Int)
+confMaxImagesUpload c = liftIO . C.lookup c $ "maxImagesUpload"
+
+parseConfig :: ConfigDefault -> C.Config -> IO Config
+parseConfig cDef conf = do
+  return $
+    Config
+      { cImageRoot = confImageRoot conf,
+        cPaginationLimit = confPaginationLimit conf,
+        cMaxImagesUpload = confMaxImagesUpload conf,
+        cMaxImageSize = confMaxImageSize conf,
+        cConfigDefault = cDef
+      }
+
+withHandler :: L.Handler -> DB.Handler -> Config -> (Handler -> IO a) -> IO a
+withHandler lHand dbHand config f = do
+  f $
+    Handler
+      { hKatipHandler = lHand,
+        hDBHandler = dbHand,
+        hConfig = config
+      }

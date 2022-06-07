@@ -36,11 +36,17 @@ library
       Api.Internal.Optional
       Api.Internal.Pagination
       Api.User
-      App
-      App.App
-      App.Auth
-      App.Middleware
-      DB.Scheme
+      App.Prod
+      Config
+      DB.Postgres
+      Handlers.App
+      Handlers.App.App
+      Handlers.App.Auth
+      Handlers.DB
+      Handlers.DB.Scheme
+      Handlers.Katip
+      Handlers.Katip.Middleware
+      Katip.Prod
   other-modules:
       Paths_metaLampServer
   hs-source-dirs:
@@ -72,6 +78,7 @@ library
     , text
     , time
     , transformers
+    , transformers-base
     , wai
     , wai-extra
     , warp
@@ -111,6 +118,7 @@ executable metaLampServer-exe
     , text
     , time
     , transformers
+    , transformers-base
     , wai
     , wai-extra
     , warp
@@ -151,6 +159,7 @@ test-suite metaLampServer-test
     , text
     , time
     , transformers
+    , transformers-base
     , wai
     , wai-extra
     , warp

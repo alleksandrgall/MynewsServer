@@ -10,15 +10,8 @@ module Api.Category where
 import Api.Internal.Auth (userIsAdmin_)
 import Api.Internal.Optional (MaybeSetter (MaybeSetter), QParam (QParam), allNothing, setsMaybe)
 import Api.Internal.Pagination (GetWithPagination, Limit, Offset, WithOffset, selectPagination)
-import App.App (App, askPaginationLimit, runDB)
-import App.Auth (Auth (..))
 import Control.Monad (when)
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
-import DB.Scheme
-  ( Category (..),
-    CategoryId,
-    EntityField (CategoryName, CategoryParent),
-  )
 import Data.Bool (bool)
 import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Text as T
@@ -36,6 +29,12 @@ import Database.Esqueleto.Experimental
     (^.),
   )
 import qualified Database.Persist.Sql as P
+import Handlers.App (App, Auth (..), askPaginationLimit, runDB)
+import Handlers.DB.Scheme
+  ( Category (..),
+    CategoryId,
+    EntityField (CategoryName, CategoryParent),
+  )
 import Katip (Severity (InfoS), katipAddContext, logFM, sl)
 import Servant
   ( AuthProtect,
