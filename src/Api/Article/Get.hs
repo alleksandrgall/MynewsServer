@@ -44,6 +44,7 @@ import Database.Esqueleto.Experimental
   )
 import qualified Database.Persist as P
 import GHC.Generics (Generic)
+import GHC.Natural (Natural)
 import Handlers.DB.Scheme
   ( Article
       ( articleCategoryId,
@@ -118,7 +119,7 @@ getFormatArticlesPagination ::
   (SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> SqlExpr (Value Bool)) ->
   (SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> SqlExpr (Value Int) -> [SqlExpr OrderBy]) ->
   Maybe Limit ->
-  Int ->
+  Natural ->
   Maybe Offset ->
   SqlPersistM (WithOffset FormatArticle)
 getFormatArticlesPagination filters order limit_ maxLimit offset_ = do

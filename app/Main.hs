@@ -21,6 +21,3 @@ main = withConfig "/home/turban/metaLampServer/config/configDev.cfg" $ \conf ->
     P.withHandler conf $ \dbHand ->
       A.parseConfig configDefault conf >>= \appConf -> A.withHandler logHand dbHand appConf $ \appHand ->
         app appHand 3000
-
--- runDBDev $ runMigration migrateAll
--- withAppConfig (\config -> )run 3000 . katipMiddleware (logConfig config) InfoS . serveApp (Proxy :: Proxy Api) app $ config

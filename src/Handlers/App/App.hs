@@ -13,6 +13,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (MonadIO, MonadReader (local), ReaderT (ReaderT), asks)
 import Data.Int (Int64)
 import Database.Persist.Sql (SqlPersistM)
+import GHC.Natural (Natural)
 import qualified Handlers.DB as DB
 import qualified Handlers.Katip as L
 import qualified Katip as K
@@ -33,14 +34,14 @@ newtype App a = App {unApp :: ReaderT Handler (ExceptT S.ServerError IO) a}
 data Config = Config
   { cImageRoot :: App FilePath,
     cMaxImageSize :: App (Maybe Int64),
-    cPaginationLimit :: App (Maybe Int),
+    cPaginationLimit :: App (Maybe Natural),
     cMaxImagesUpload :: App (Maybe Int),
     cConfigDefault :: ConfigDefault
   }
 
 data ConfigDefault = ConfigDefault
   { defMaxImageSize :: Int64,
-    defCPaginationLimit :: Int,
+    defCPaginationLimit :: Natural,
     defCMaxImageUpload :: Int
   }
 
@@ -56,7 +57,7 @@ askImageRoot = join $ asks (cImageRoot . hConfig)
 askMaxImageSize :: App Int64
 askMaxImageSize = maybe (asks (defMaxImageSize . cConfigDefault . hConfig)) return =<< join (asks (cMaxImageSize . hConfig))
 
-askPaginationLimit :: App Int
+askPaginationLimit :: App Natural
 askPaginationLimit = maybe (asks (defCPaginationLimit . cConfigDefault . hConfig)) return =<< join (asks (cPaginationLimit . hConfig))
 
 askMaxImagesUpload :: App Int

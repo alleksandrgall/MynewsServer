@@ -5,6 +5,9 @@ import Control.Monad.IO.Class (liftIO)
 import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as C
 import Data.Int (Int64)
+import Data.Ratio (numerator)
+import GHC.Natural (Natural)
+import GHC.Real (denominator)
 import Handlers.App (App, Config (..), ConfigDefault, Handler (..))
 import qualified Handlers.DB as DB
 import qualified Handlers.Katip as L
@@ -21,7 +24,13 @@ confImageRoot c = do
 confMaxImageSize :: C.Config -> App (Maybe Int64)
 confMaxImageSize c = liftIO . C.lookup c $ "maxImageSize"
 
-confPaginationLimit :: C.Config -> App (Maybe Int)
+instance C.Configured Natural where
+  convert (C.Number r) = case (numerator r, denominator r) of
+    (x, 1) -> if x > 0 then Just . fromIntegral $ x else Nothing
+    (_, _) -> Nothing
+  convert _ = Nothing
+
+confPaginationLimit :: C.Config -> App (Maybe Natural)
 confPaginationLimit c = liftIO . C.lookup c $ "paginationLimit"
 
 confMaxImagesUpload :: C.Config -> App (Maybe Int)

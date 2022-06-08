@@ -70,8 +70,8 @@ library
     , mtl
     , persistent
     , persistent-postgresql
+    , persistent-sqlite
     , persistent-template
-    , postgresql-simple
     , servant
     , servant-multipart
     , servant-server
@@ -110,8 +110,8 @@ executable metaLampServer-exe
     , mtl
     , persistent
     , persistent-postgresql
+    , persistent-sqlite
     , persistent-template
-    , postgresql-simple
     , servant
     , servant-multipart
     , servant-server
@@ -129,6 +129,7 @@ test-suite metaLampServer-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      DB.Test
       Paths_metaLampServer
   hs-source-dirs:
       test
@@ -151,8 +152,8 @@ test-suite metaLampServer-test
     , mtl
     , persistent
     , persistent-postgresql
+    , persistent-sqlite
     , persistent-template
-    , postgresql-simple
     , servant
     , servant-multipart
     , servant-server

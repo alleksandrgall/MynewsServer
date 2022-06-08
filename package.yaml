@@ -32,12 +32,11 @@ dependencies:
 - time
 - bytestring
 - persistent-postgresql
+- persistent-sqlite
 - persistent-template
 - configurator
 - transformers
 - transformers-base
-# postgresql-simple brings in the scope SqlError which is used for exception handling
-- postgresql-simple
 - monad-logger
 - katip
 - wai-extra

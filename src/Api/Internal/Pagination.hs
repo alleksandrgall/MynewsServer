@@ -24,6 +24,7 @@ import Data.Aeson (ToJSON (toJSON))
 import qualified Database.Esqueleto.Experimental as E
 import Database.Esqueleto.Internal.Internal (SqlSelect)
 import GHC.Generics (Generic)
+import GHC.Natural (Natural)
 import Servant (FromHttpApiData (parseUrlPiece), Get, QueryParam, type (:>))
 
 type GetWithPagination (t :: [*]) a = QueryParam "limit" Limit :> QueryParam "offset" Offset :> Get t (WithOffset a)
@@ -32,7 +33,7 @@ newtype Offset = Offset {unOffset :: Int} deriving (Show)
 
 instance ToJSON Offset where toJSON (Offset i) = toJSON i
 
-newtype Limit = Limit {unLimit :: Int}
+newtype Limit = Limit {unLimit :: Natural}
 
 instance ToJSON Limit where toJSON (Limit i) = toJSON i
 
@@ -42,9 +43,9 @@ instance FromHttpApiData Offset where
     Right x -> if x < 0 then Left "Offset must be an inteher greater or equal then zero." else Right . Offset $ x
 
 instance FromHttpApiData Limit where
-  parseUrlPiece s = case parseUrlPiece @Int s of
+  parseUrlPiece s = case parseUrlPiece @Natural s of
     Left e -> Left e
-    Right x -> if x <= 0 then Left "Limit must be an integer greater then zero." else Right . Limit $ x
+    Right x -> Right . Limit $ x
 
 data WithOffset a = WithOffset {offset :: Offset, content :: [a]}
   deriving (Functor, Generic, Show, ToJSON)
@@ -55,7 +56,7 @@ instance Foldable WithOffset where
 instance Traversable WithOffset where
   traverse f (WithOffset off list) = WithOffset off <$> traverse f list
 
-setLimit :: Int -> Maybe Limit -> E.SqlQuery ()
+setLimit :: Natural -> Maybe Limit -> E.SqlQuery ()
 setLimit maxLimit lim =
   E.limit . fromIntegral $
     maybe
@@ -70,7 +71,7 @@ selectPagination ::
   (MonadIO m, SqlSelect a r) =>
   Maybe Limit ->
   Maybe Offset ->
-  Int ->
+  Natural ->
   E.SqlQuery a ->
   E.SqlPersistT m (WithOffset r)
 selectPagination lim off maxLimit q =
@@ -82,5 +83,5 @@ selectPagination lim off maxLimit q =
             pure r
         )
 
-newOffset :: Maybe Limit -> Maybe Offset -> Int -> Offset
-newOffset lim off maxLimit = Offset $ maybe 0 unOffset off + maybe maxLimit unLimit lim + 1
+newOffset :: Maybe Limit -> Maybe Offset -> Natural -> Offset
+newOffset lim off maxLimit = Offset $ maybe 0 unOffset off + fromIntegral (maybe maxLimit unLimit lim) + 1

@@ -7,8 +7,8 @@ import qualified Data.Configurator as C
 import qualified Data.Configurator.Types as C
 import Data.String (IsString (fromString))
 import Database.Persist.Postgresql (withPostgresqlPool)
-import Database.Persist.Sql
-import Handlers.DB
+import Database.Persist.Sql (SqlPersistM, liftSqlPersistMPool)
+import Handlers.DB (Handler (..))
 
 newtype FatalNoDBConnectionString = FatalNoDBConnectionString String deriving (Show)
 
