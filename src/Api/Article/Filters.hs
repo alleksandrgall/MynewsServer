@@ -29,6 +29,7 @@ import Handlers.DB.Scheme
     EntityField
       ( ArticleContent,
         ArticleCreated,
+        ArticleId,
         ArticleTitle,
         CategoryId,
         CategoryName,
@@ -41,7 +42,7 @@ import Servant (FromHttpApiData (parseUrlPiece), QueryParam, type (:>))
 type GetWithFilters (t :: [*]) a =
   QueryParam "created_since" Day :> QueryParam "created_until" Day :> QueryParam "created_at" Day
     :> QueryParam "author" String
-    :> QueryParam "category" CategoryId
+    :> QueryParam "category_id" CategoryId
     :> QueryParam "title_has" String
     :> QueryParam "content_has" String
     -- API новостей должно поддерживать поиск по строке,
@@ -69,22 +70,22 @@ categoryIdF_ :: SqlExpr (Entity Category) -> Maybe CategoryId -> SqlExpr (Value 
 categoryIdF_ cat catId = maybeFilter catId (\catId' -> cat ^. CategoryId ==. val catId')
 
 titleHasF :: SqlExpr (Entity Article) -> Maybe String -> SqlExpr (Value Bool)
-titleHasF art subStr = maybeFilter subStr (\subStr' -> art ^. ArticleTitle `like` (%) ++. val subStr' ++. (%))
+titleHasF art subStr = maybeFilter subStr (\subStr' -> art ^. ArticleTitle `like` ((%) ++. val subStr' ++. (%)))
 
 contentHasF :: SqlExpr (Entity Article) -> Maybe String -> SqlExpr (Value Bool)
-contentHasF art subStr = maybeFilter subStr (\subStr' -> art ^. ArticleContent `like` (%) ++. val subStr' ++. (%))
+contentHasF art subStr = maybeFilter subStr (\subStr' -> art ^. ArticleContent `like` ((%) ++. val subStr' ++. (%)))
 
 searchF :: SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> Maybe String -> SqlExpr (Value Bool)
 searchF art user_ cat subStr = maybeFilter subStr $ \subStr' ->
-  (art ^. ArticleContent `like` (%) ++. val subStr' ++. (%)) ||. (user_ ^. UserName `like` (%) ++. val subStr' ++. (%))
-    ||. (cat ^. CategoryName `like` (%) ++. val subStr' ++. (%))
+  (art ^. ArticleContent `like` ((%) ++. val subStr' ++. (%))) ||. (user_ ^. UserName `like` ((%) ++. val subStr' ++. (%)))
+    ||. (cat ^. CategoryName `like` ((%) ++. val subStr' ++. (%)))
 
 sortByF_ :: SqlExpr (Entity Article) -> SqlExpr (Entity User) -> SqlExpr (Entity Category) -> SqlExpr (Value Int) -> Maybe SortBy -> [SqlExpr OrderBy]
 sortByF_ art _ _ _ (Just Date) = [asc (art ^. ArticleCreated)]
 sortByF_ _ user_ _ _ (Just Author) = [asc (user_ ^. UserName)]
 sortByF_ _ _ cat _ (Just Category_) = [asc (cat ^. CategoryName)]
 sortByF_ _ _ _ imageNum (Just ImageNum) = [asc imageNum]
-sortByF_ _ _ _ _ Nothing = []
+sortByF_ art _ _ _ Nothing = [asc (art ^. ArticleId)]
 
 data SortBy = Date | Author | Category_ | ImageNum deriving (Show)
 

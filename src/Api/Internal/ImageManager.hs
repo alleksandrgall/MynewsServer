@@ -52,6 +52,7 @@ import Database.Esqueleto.Experimental
   )
 import qualified Database.Persist.Sql as P hiding ((==.))
 import GHC.Generics (Generic)
+import GHC.IO.Exception (IOException (IOError))
 import Handlers.App
   ( App,
     askImageRoot,
@@ -78,6 +79,8 @@ import Servant.Multipart
     Mem,
   )
 import System.Directory (createDirectoryIfMissing, removeFile)
+import System.Directory.Internal.Prelude (isDoesNotExistError)
+import System.FilePath ((</>))
 
 saveAndInsertImages :: [FileData Mem] -> (ImageId -> SqlPersistM ()) -> App [ImageId]
 saveAndInsertImages fds inserter = do
@@ -86,13 +89,17 @@ saveAndInsertImages fds inserter = do
   maxFileSize <- askMaxImageSize
   mapM_
     ( \fd -> do
-        when (T.takeWhile (/= '/') (fdFileCType fd) /= "image") (throwError err415) --not an image
-        when (LBS.length (fdPayload fd) > maxFileSize) (throwError err413) --file too large
+        when
+          (T.takeWhile (/= '/') (fdFileCType fd) /= "image")
+          (throwError err415 {errReasonPhrase = "Not an image, fname: " ++ (T.unpack . fdFileName $ fd)})
+        when
+          (LBS.length (fdPayload fd) > maxFileSize)
+          (throwError err413 {errReasonPhrase = "File is too large, fname: " ++ (T.unpack . fdFileName $ fd)})
     )
     fds
   (year, month', day') <- liftIO $ toGregorian . utctDay <$> getCurrentTime
   imageRoot <- askImageRoot
-  let trg = imageRoot ++ "/" ++ show year ++ "/" ++ show month' ++ "/" ++ show day'
+  let trg = imageRoot </> show year </> show month' </> show day'
   liftIO $ createDirectoryIfMissing True trg
   let insertDB =
         foldM
@@ -153,8 +160,12 @@ deleteImagesArticle imagesToDelete aId = do
     deleteSafe imageEnt ims = catch (deleteImage imageEnt >>= \imD -> return $ imD : ims) (ioExceptHandler ims)
     deleteImage imageEnt = runDB $ do
       P.delete (entityKey imageEnt)
-      liftIO $ removeFile (imageEnt & entityVal & imagePath)
+      liftIO $ removeFile (imageEnt & entityVal & imagePath) `catch` handleDoesNotExist
       return (entityKey imageEnt)
+    handleDoesNotExist :: IOError -> IO ()
+    handleDoesNotExist e
+      | True <- isDoesNotExistError e = return ()
+      | otherwise = throwM e
     ioExceptHandler :: (MonadThrow m) => [ImageId] -> SomeException -> m a
     ioExceptHandler ims = \se -> throwM $ DeleteException se ims
     handleDeleteException :: DeleteException -> App DeleteStatus
@@ -168,7 +179,7 @@ rawSqlInsertFileWithId :: (MonadIO m) => FilePath -> FileData Mem -> SqlPersistT
 rawSqlInsertFileWithId root fd =
   P.rawSql
     " INSERT INTO image (path, mime) VALUES (? || currval('image_image_id_seq')|| ?, ?) RETURNING "
-    [ P.PersistText $ T.pack root <> "/" <> "image",
+    [ P.PersistText $ T.pack $ root </> "image",
       P.PersistText $ T.dropWhile (/= '.') (fdFileName fd),
       P.PersistText $ fdFileCType fd
     ]

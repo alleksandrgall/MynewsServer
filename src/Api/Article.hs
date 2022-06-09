@@ -40,6 +40,7 @@ import Control.Monad.IO.Class (liftIO)
 import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
 import Data.Maybe (isNothing)
+import Data.String (IsString (fromString))
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (Day, UTCTime (utctDay), getCurrentTime)
@@ -142,6 +143,8 @@ create (Auth u) form = do
     Left e -> throwError err400 {errReasonPhrase = "Absent or incomplete article content. Error: " ++ e}
     Right incArt -> do
       let fds = files form
+      K.logFM K.InfoS (fromString . show . length $ fds)
+      mapM_ (\fd -> K.logFM K.InfoS (fromString . show $ fd)) fds
       imageIds <- saveAndInsertImages fds (\_ -> return ())
       dbArticle <- liftIO $ incomingArticleToDbArticle incArt (P.entityKey u)
       aId <- runDB $ do

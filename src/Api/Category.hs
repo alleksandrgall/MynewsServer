@@ -19,7 +19,9 @@ import Database.Esqueleto.Experimental
   ( Entity,
     PersistStoreRead (get),
     PersistStoreWrite (insert),
+    asc,
     from,
+    orderBy,
     select,
     table,
     val,
@@ -33,7 +35,7 @@ import Handlers.App (App, Auth (..), askPaginationLimit, runDB)
 import Handlers.DB.Scheme
   ( Category (..),
     CategoryId,
-    EntityField (CategoryName, CategoryParent),
+    EntityField (CategoryId, CategoryName, CategoryParent),
   )
 import Katip (Severity (InfoS), katipAddContext, logFM, sl)
 import Servant
@@ -84,8 +86,8 @@ instance FromHttpApiData Parent where
     | T.toLower s == "root" = Right $ Parent Nothing
     | otherwise = Parent . Just <$> parseUrlPiece @CategoryId s
 
-isUniqueSibling :: String -> Parent -> ExceptT String P.SqlPersistM ()
-isUniqueSibling name parentId =
+uniqueSibling :: String -> Parent -> ExceptT String P.SqlPersistM ()
+uniqueSibling name parentId =
   ExceptT $
     bool (Left "Already have a category with the same \"name\" and \"parent\".") (Right ()) . null
       <$> ( select $ do
@@ -94,9 +96,9 @@ isUniqueSibling name parentId =
               pure c
           )
 
-isParentExists :: Parent -> ExceptT String P.SqlPersistM ()
-isParentExists (Parent Nothing) = return ()
-isParentExists (Parent (Just catId)) = ExceptT $ bool (Left "Given parent category doesn't exist.") (Right ()) . isJust <$> P.get catId
+parentExists :: Parent -> ExceptT String P.SqlPersistM ()
+parentExists (Parent Nothing) = return ()
+parentExists (Parent (Just catId)) = ExceptT $ bool (Left "Given parent category doesn't exist.") (Right ()) . isJust <$> P.get catId
 
 create :: Auth a -> String -> Parent -> App CategoryId
 create (Auth u) name parentId = do
@@ -104,8 +106,8 @@ create (Auth u) name parentId = do
   userIsAdmin_ u
   either (\e -> throwError err400 {errReasonPhrase = e}) return
     =<< ( runDB . runExceptT $ do
-            isUniqueSibling name parentId
-            isParentExists parentId
+            uniqueSibling name parentId
+            parentExists parentId
         )
   catId <- runDB (insert $ Category name (unParent parentId))
   katipAddContext (sl "cateogory_id" catId) $ logFM InfoS "Category created" >> return catId
@@ -122,8 +124,8 @@ alter (Auth u) trgId name parentId = do
     when isSelfParent $ throwError err400 {errReasonPhrase = "Category is a parent of itself."}
     either (\e -> throwError err400 {errReasonPhrase = e}) return
       =<< ( runDB . runExceptT $ do
-              isUniqueSibling (fromMaybe (categoryName oldCateg) name) (fromMaybe (Parent $ categoryParent oldCateg) parentId)
-              isParentExists (fromMaybe (Parent $ categoryParent oldCateg) parentId)
+              uniqueSibling (fromMaybe (categoryName oldCateg) name) (fromMaybe (Parent $ categoryParent oldCateg) parentId)
+              parentExists (fromMaybe (Parent $ categoryParent oldCateg) parentId)
           )
     runDB . P.update trgId $ setsMaybe [MaybeSetter (CategoryName, name), MaybeSetter (CategoryParent, unParent <$> parentId)]
     logFM InfoS "Category altered"
@@ -137,5 +139,8 @@ getC lim off = do
     cats <-
       runDB
         . selectPagination lim off maxLimit
-        $ from $ table @Category
+        $ do
+          c <- from $ table @Category
+          orderBy [asc (c ^. CategoryId)]
+          pure c
     katipAddContext (sl "cateogry_number" (length cats)) $ logFM InfoS "Categories sent" >> return cats

@@ -29,13 +29,22 @@ import Data.Maybe (isJust)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (UTCTime (utctDay), getCurrentTime)
-import Database.Esqueleto.Experimental hiding (get)
+import Database.Esqueleto.Experimental
+  ( Entity,
+    PersistStoreWrite (insert),
+    PersistUniqueRead (getBy),
+    asc,
+    from,
+    orderBy,
+    table,
+    (^.),
+  )
 import qualified Database.Persist as P
 import qualified Database.Persist.Sql as P
 import GHC.Generics (Generic)
 import Handlers.App (App, Auth (..), askPaginationLimit, runDB)
 import Handlers.DB.Scheme
-  ( EntityField (UserIsAuthor, UserName),
+  ( EntityField (UserId, UserIsAuthor, UserName),
     ImageId,
     Unique (UniqueUserName),
     User (..),
@@ -119,7 +128,7 @@ create (Auth u) form = do
     Right incUser -> do
       either (\e -> throwError err400 {errReasonPhrase = e}) return
         =<< ( runDB . runExceptT $ do
-                isUserExists $ incomingName incUser
+                usernameFree $ incomingName incUser
             )
       maybeAvId <- case lookupFile "avatar" form of
         Left _ -> return Nothing
@@ -130,15 +139,18 @@ create (Auth u) form = do
       uId <- runDB $ insert dbU
       katipAddContext (sl "user_id" uId) $ logFM InfoS "User created" >> return uId
 
-isUserExists :: String -> ExceptT String P.SqlPersistM ()
-isUserExists name = ExceptT $ bool (Left "Username is already taken.") (Right ()) . isJust <$> getBy (UniqueUserName name)
+usernameFree :: String -> ExceptT String P.SqlPersistM ()
+usernameFree name = ExceptT $ bool (Right ()) (Left "Username is already taken") . isJust <$> getBy (UniqueUserName name)
+
+userExists :: String -> ExceptT String P.SqlPersistM ()
+userExists name = ExceptT $ bool (Left "User does not exists.") (Right ()) . isJust <$> getBy (UniqueUserName name)
 
 toAuthor :: Auth a -> String -> App NoContent
 toAuthor (Auth u) name = do
   userIsAdmin_ u
   either (\e -> throwError err400 {errReasonPhrase = e}) return
     =<< ( runDB . runExceptT $ do
-            isUserExists name
+            userExists name
         )
   runDB $ P.updateWhere [UserName P.==. name] [UserIsAuthor P.=. True]
   katipAddContext (sl "user_name" name) $ logFM InfoS "User promoted to author" >> return NoContent
@@ -151,5 +163,9 @@ getU lim off = do
     users <-
       runDB
         . selectPagination lim off maxLimit
-        $ from $ table @User
+        $ do
+          u <- from $ table @User
+          orderBy [asc (u ^. UserId)]
+          pure u
+
     katipAddContext (sl "user_number" (length users)) $ logFM InfoS "Users sent" >> return users

@@ -1,0 +1,1 @@
+Database comes with admin user with credentials admin:admin. You can use it to test out admin part of api.

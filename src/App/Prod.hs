@@ -1,4 +1,4 @@
-module App.Prod (parseConfig, withHandler) where
+module App.Prod (Handler, parseConfig, withHandler) where
 
 import Control.Exception (Exception, throwIO)
 import Control.Monad.IO.Class (liftIO)
@@ -8,7 +8,7 @@ import Data.Int (Int64)
 import Data.Ratio (numerator)
 import GHC.Natural (Natural)
 import GHC.Real (denominator)
-import Handlers.App (App, Config (..), ConfigDefault, Handler (..))
+import Handlers.App (App, Config (..), Handler (..))
 import qualified Handlers.DB as DB
 import qualified Handlers.Katip as L
 
@@ -21,8 +21,10 @@ confImageRoot c = do
   maybeVal <- liftIO . C.lookup c $ "imageRoot"
   maybe (liftIO . throwIO $ FatalConfigError "Location for image storage is required") return maybeVal
 
-confMaxImageSize :: C.Config -> App (Maybe Int64)
-confMaxImageSize c = liftIO . C.lookup c $ "maxImageSize"
+confMaxImageSize :: C.Config -> App Int64
+confMaxImageSize c = do
+  maybeVal <- liftIO . C.lookup c $ "maxImageSize"
+  maybe (liftIO . throwIO $ FatalConfigError "Maximum size of image must be provided (in bytes)") return maybeVal
 
 instance C.Configured Natural where
   convert (C.Number r) = case (numerator r, denominator r) of
@@ -30,21 +32,24 @@ instance C.Configured Natural where
     (_, _) -> Nothing
   convert _ = Nothing
 
-confPaginationLimit :: C.Config -> App (Maybe Natural)
-confPaginationLimit c = liftIO . C.lookup c $ "paginationLimit"
+confPaginationLimit :: C.Config -> App Natural
+confPaginationLimit c = do
+  maybeVal <- liftIO . C.lookup c $ "paginationLimit"
+  maybe (liftIO . throwIO $ FatalConfigError "Default pagination limit must be provided") return maybeVal
 
-confMaxImagesUpload :: C.Config -> App (Maybe Int)
-confMaxImagesUpload c = liftIO . C.lookup c $ "maxImagesUpload"
+confMaxImagesUpload :: C.Config -> App Int
+confMaxImagesUpload c = do
+  maybeVal <- liftIO . C.lookup c $ "maxImagesUpload"
+  maybe (liftIO . throwIO $ FatalConfigError "Maximum number of simultaneously uploading images must be provided") return maybeVal
 
-parseConfig :: ConfigDefault -> C.Config -> IO Config
-parseConfig cDef conf = do
+parseConfig :: C.Config -> IO Config
+parseConfig conf = do
   return $
     Config
       { cImageRoot = confImageRoot conf,
         cPaginationLimit = confPaginationLimit conf,
         cMaxImagesUpload = confMaxImagesUpload conf,
-        cMaxImageSize = confMaxImageSize conf,
-        cConfigDefault = cDef
+        cMaxImageSize = confMaxImageSize conf
       }
 
 withHandler :: L.Handler -> DB.Handler -> Config -> (Handler -> IO a) -> IO a

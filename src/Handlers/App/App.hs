@@ -33,16 +33,9 @@ newtype App a = App {unApp :: ReaderT Handler (ExceptT S.ServerError IO) a}
 
 data Config = Config
   { cImageRoot :: App FilePath,
-    cMaxImageSize :: App (Maybe Int64),
-    cPaginationLimit :: App (Maybe Natural),
-    cMaxImagesUpload :: App (Maybe Int),
-    cConfigDefault :: ConfigDefault
-  }
-
-data ConfigDefault = ConfigDefault
-  { defMaxImageSize :: Int64,
-    defCPaginationLimit :: Natural,
-    defCMaxImageUpload :: Int
+    cMaxImageSize :: App Int64,
+    cPaginationLimit :: App Natural,
+    cMaxImagesUpload :: App Int
   }
 
 data Handler = Handler
@@ -55,13 +48,13 @@ askImageRoot :: App FilePath
 askImageRoot = join $ asks (cImageRoot . hConfig)
 
 askMaxImageSize :: App Int64
-askMaxImageSize = maybe (asks (defMaxImageSize . cConfigDefault . hConfig)) return =<< join (asks (cMaxImageSize . hConfig))
+askMaxImageSize = join (asks (cMaxImageSize . hConfig))
 
 askPaginationLimit :: App Natural
-askPaginationLimit = maybe (asks (defCPaginationLimit . cConfigDefault . hConfig)) return =<< join (asks (cPaginationLimit . hConfig))
+askPaginationLimit = join (asks (cPaginationLimit . hConfig))
 
 askMaxImagesUpload :: App Int
-askMaxImagesUpload = maybe (asks (defCMaxImageUpload . cConfigDefault . hConfig)) return =<< join (asks (cMaxImagesUpload . hConfig))
+askMaxImagesUpload = join (asks (cMaxImagesUpload . hConfig))
 
 runDB :: SqlPersistM a -> App a
 runDB x = asks (DB.hRunDB . hDBHandler) >>= liftIO . flip ($) x

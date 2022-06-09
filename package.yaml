@@ -35,6 +35,8 @@ dependencies:
 - persistent-sqlite
 - persistent-template
 - configurator
+- conduit
+- temporary
 - transformers
 - transformers-base
 - monad-logger
@@ -48,6 +50,7 @@ dependencies:
 - word8
 - mtl
 - directory
+- filepath
 - exceptions
 
 library:

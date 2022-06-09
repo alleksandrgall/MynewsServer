@@ -12,7 +12,6 @@ import Data.Data (Proxy (Proxy))
 import Handlers.App.App as X
   ( App (..),
     Config (..),
-    ConfigDefault (..),
     Handler (..),
     askImageRoot,
     askMaxImageSize,

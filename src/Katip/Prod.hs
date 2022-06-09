@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 
-module Katip.Prod (parseConfig, withHandler) where
+module Katip.Prod (Handler, parseConfig, withHandler) where
 
 import Data.Char (toLower)
 import qualified Data.Configurator as C

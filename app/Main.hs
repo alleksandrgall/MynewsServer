@@ -1,23 +1,14 @@
 module Main where
 
-import Api
+import Api (app)
 import qualified App.Prod as A
-import Config
+import Config (withConfig)
 import qualified DB.Postgres as P
-import qualified Handlers.App as A
 import qualified Katip.Prod as L
-
-configDefault :: A.ConfigDefault
-configDefault =
-  A.ConfigDefault
-    { A.defMaxImageSize = 20000000,
-      A.defCPaginationLimit = 5,
-      A.defCMaxImageUpload = 5
-    }
 
 main :: IO ()
 main = withConfig "/home/turban/metaLampServer/config/configDev.cfg" $ \conf ->
   L.parseConfig conf >>= \lConf -> L.withHandler lConf $ \logHand ->
     P.withHandler conf $ \dbHand ->
-      A.parseConfig configDefault conf >>= \appConf -> A.withHandler logHand dbHand appConf $ \appHand ->
+      A.parseConfig conf >>= \appConf -> A.withHandler logHand dbHand appConf $ \appHand ->
         app appHand 3000

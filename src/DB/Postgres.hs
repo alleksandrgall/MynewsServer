@@ -1,4 +1,4 @@
-module DB.Postgres (withHandler) where
+module DB.Postgres (Handler, withHandler) where
 
 import Control.Exception (Exception, throwIO)
 import Control.Monad.IO.Class (liftIO)
