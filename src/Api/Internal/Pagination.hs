@@ -20,18 +20,24 @@ module Api.Internal.Pagination
 where
 
 import Control.Monad.IO.Class (MonadIO)
-import Data.Aeson (ToJSON (toJSON))
+import Data.Aeson (FromJSON, ToJSON (toJSON), Value (Number))
+import Data.Aeson.Types (FromJSON (parseJSON))
+import Data.String (IsString (fromString))
 import qualified Database.Esqueleto.Experimental as E
 import Database.Esqueleto.Internal.Internal (SqlSelect)
 import GHC.Generics (Generic)
 import GHC.Natural (Natural)
-import Servant (FromHttpApiData (parseUrlPiece), Get, QueryParam, type (:>))
+import Servant (FromHttpApiData (parseUrlPiece), Get, QueryParam, ToHttpApiData (toUrlPiece), type (:>))
 
 type GetWithPagination (t :: [*]) a = QueryParam "limit" Limit :> QueryParam "offset" Offset :> Get t (WithOffset a)
 
 newtype Offset = Offset {unOffset :: Int} deriving (Show)
 
 instance ToJSON Offset where toJSON (Offset i) = toJSON i
+
+instance FromJSON Offset where
+  parseJSON (Number n) = Offset <$> parseJSON (Number n)
+  parseJSON _ = mempty
 
 newtype Limit = Limit {unLimit :: Natural}
 
@@ -42,13 +48,19 @@ instance FromHttpApiData Offset where
     Left e -> Left e
     Right x -> if x < 0 then Left "Offset must be an inteher greater or equal then zero." else Right . Offset $ x
 
+instance ToHttpApiData Limit where
+  toUrlPiece (Limit x) = toUrlPiece x
+
+instance ToHttpApiData Offset where
+  toUrlPiece (Offset x) = toUrlPiece x
+
 instance FromHttpApiData Limit where
   parseUrlPiece s = case parseUrlPiece @Natural s of
     Left e -> Left e
     Right x -> Right . Limit $ x
 
 data WithOffset a = WithOffset {offset :: Offset, content :: [a]}
-  deriving (Functor, Generic, Show, ToJSON)
+  deriving (Functor, Generic, Show, ToJSON, FromJSON)
 
 instance Foldable WithOffset where
   foldMap f (WithOffset _ list) = foldMap f list

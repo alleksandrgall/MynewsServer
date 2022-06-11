@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 
@@ -11,6 +12,7 @@ module Api.Internal.ImageManager
   ( saveAndInsertImages,
     DeleteStatus (..),
     deleteImagesArticle,
+    getImage,
   )
 where
 
@@ -31,8 +33,10 @@ import Data.Aeson
     defaultOptions,
     genericToJSON,
   )
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Function ((&))
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Text as T
 import Data.Time (UTCTime (utctDay), getCurrentTime, toGregorian)
 import Database.Esqueleto.Experimental
@@ -63,13 +67,14 @@ import Handlers.App
 import Handlers.DB.Scheme
   ( ArticleId,
     EntityField (ImageArticleArticleId, ImageArticleImageId, ImageId),
-    Image (imagePath),
+    Image (Image, imageMime, imagePath),
     ImageArticle,
     ImageId,
   )
 import qualified Katip as K
 import Servant
   ( ServerError (errReasonPhrase),
+    err400,
     err413,
     err415,
     throwError,
@@ -79,11 +84,16 @@ import Servant.Multipart
     Mem,
   )
 import System.Directory (createDirectoryIfMissing, removeFile)
-import System.Directory.Internal.Prelude (isDoesNotExistError)
-import System.FilePath ((</>))
+import System.Directory.Internal.Prelude (hClose, isDoesNotExistError)
+import System.FilePath (takeExtension, (</>))
+import System.Posix (mkstemp, mkstemps)
 
-saveAndInsertImages :: [FileData Mem] -> (ImageId -> SqlPersistM ()) -> App [ImageId]
-saveAndInsertImages fds inserter = do
+--Query for saving image data to, generating filepath using newly optaioned image id
+insertImage :: (MonadIO m) => FilePath -> FileData Mem -> SqlPersistT m ImageId
+insertImage root fd = P.insert (Image (T.unpack $ fdFileCType fd) root)
+
+saveAndInsertImages :: NonEmpty (FileData Mem) -> (ImageId -> SqlPersistM ()) -> App (NonEmpty ImageId)
+saveAndInsertImages (f :| fds) inserter = do
   maxFiles <- askMaxImagesUpload
   when (length fds > maxFiles) (throwError err413 {errReasonPhrase = "Too many files, max file num is " ++ show maxFiles})
   maxFileSize <- askMaxImageSize
@@ -101,19 +111,30 @@ saveAndInsertImages fds inserter = do
   imageRoot <- askImageRoot
   let trg = imageRoot </> show year </> show month' </> show day'
   liftIO $ createDirectoryIfMissing True trg
-  let insertDB =
+  let insertOneDB = do
+        (imageFp, h) <- liftIO $ mkstemps trg (takeExtension (T.unpack $ fdFileName f))
+        imId <- insertImage imageFp f
+        inserter imId
+        return (h, imageFp, fdPayload f, imId)
+      insertDB =
         foldM
           ( \prev fd -> do
-              [im] <- rawSqlInsertFileWithId trg fd
-              inserter (entityKey im)
-              return ((entityKey im, imagePath . entityVal $ im, fdPayload fd) : prev)
+              (imageFp, h) <- liftIO $ mkstemps trg (takeExtension (T.unpack $ fdFileName f))
+              imId <- insertImage imageFp f
+              inserter imId
+              return ((h, imageFp, fdPayload fd, imId) : prev)
           )
           []
           fds
   runDB $ do
-    fls <- insertDB
-    liftIO $ onException (mapM_ (\(_, fp, bs) -> LBS.writeFile fp bs) fls) (mapM_ (\(_, fp, _) -> removeFile fp) fls)
-    return $ map (\(imId, _, _) -> imId) fls
+    imageData <- insertOneDB
+    imageDataS <- insertDB
+    liftIO $ do
+      onException
+        (mapM_ (\(h, _, bs, _) -> LBS.hPut h bs) (imageData :| imageDataS))
+        (mapM_ (\(h, fp, _, _) -> hClose h >> removeFile fp) (imageData :| imageDataS))
+      mapM_ (\(h, _, _, _) -> hClose h) (imageData :| imageDataS)
+    return $ fmap (\(_, _, _, imId) -> imId) (imageData :| imageDataS)
 
 data DeleteException = DeleteException SomeException [ImageId] deriving (Show)
 
@@ -132,7 +153,6 @@ instance ToJSON DeleteStatus where
   Function deletes both from DB and File storage.
   In case of failing upon deleting on of the images list of already deleted images is returned as well as false in 'DeleteStatus'.
   on success returnes true and a list of deleted images
-
 -}
 deleteImagesArticle :: [ImageId] -> ArticleId -> App DeleteStatus
 deleteImagesArticle imagesToDelete aId = do
@@ -174,12 +194,11 @@ deleteImagesArticle imagesToDelete aId = do
         K.logFM K.ErrorS "Not all of the requested images where deleted."
         return $ DeleteStatus False ims
 
---Query for saving image data to, generating filepath using newly optaioned image id
-rawSqlInsertFileWithId :: (MonadIO m) => FilePath -> FileData Mem -> SqlPersistT m [Entity Image]
-rawSqlInsertFileWithId root fd =
-  P.rawSql
-    " INSERT INTO image (path, mime) VALUES (? || currval('image_image_id_seq')|| ?, ?) RETURNING "
-    [ P.PersistText $ T.pack $ root </> "image",
-      P.PersistText $ T.dropWhile (/= '.') (fdFileName fd),
-      P.PersistText $ fdFileCType fd
-    ]
+getImage :: ImageId -> App (String, BS.ByteString)
+getImage imId = do
+  maybeImage <- runDB $ P.get imId
+  case maybeImage of
+    Nothing -> throwError err400 {errReasonPhrase = "No such image"}
+    Just image -> do
+      let contentTypeHeader = imageMime image
+      fmap (contentTypeHeader,) <$> liftIO $ BS.readFile (imagePath image)

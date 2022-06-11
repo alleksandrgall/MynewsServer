@@ -39,11 +39,11 @@ toServer h api = S.hoistServerWithContext api (Proxy @AuthContext) (convertApp h
 serveApp :: S.HasServer api AuthContext => Handler -> Proxy api -> S.ServerT api App -> W.Application
 serveApp h api appServer = S.serveWithContext api (authContext h) (toServer h api appServer)
 
-serveWithKatip :: S.HasServer api AuthContext => Handler -> Proxy api -> S.ServerT api App -> S.Application
+serveWithKatip :: S.HasServer api AuthContext => Handler -> Proxy api -> S.ServerT api App -> W.Application
 serveWithKatip h api appServer =
   let withMiddleWare = katipMiddleware InfoS . mkApplicationK $ \localKatipHandler ->
         serveApp (h {hKatipHandler = localKatipHandler}) api appServer
    in runApplicationK (hKatipHandler h) withMiddleWare
 
-serve_ :: S.HasServer api AuthContext => Handler -> Proxy api -> S.ServerT api App -> Int -> IO ()
-serve_ h api server port = run port . serveWithKatip h api $ server
+serve_ :: S.HasServer api AuthContext => Handler -> Proxy api -> S.ServerT api App -> W.Application
+serve_ = serveWithKatip

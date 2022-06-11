@@ -3,7 +3,14 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages: []
+packages:
+- completed:
+    hackage: servant-multipart-client-0.12.1@sha256:fdaeea6a7e3b5459321520606a5dc0be55e16ebc3abe245fddb14df8a34a08cb,1976
+    pantry-tree:
+      size: 400
+      sha256: bd67fb17f20e1f2195d77556a4d99db2edee81d20fabe02060ac45e8c2b7e970
+  original:
+    hackage: servant-multipart-client-0.12.1@sha256:fdaeea6a7e3b5459321520606a5dc0be55e16ebc3abe245fddb14df8a34a08cb,1976
 snapshots:
 - completed:
     size: 587113

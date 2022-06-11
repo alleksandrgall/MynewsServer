@@ -1,2 +1,6 @@
+import TestHandler (withTestHandler)
+import User (userSpec)
+
 main :: IO ()
-main = putStrLn "Test suite not yet implemented"
+main = withTestHandler $ \h ->
+  userSpec h

@@ -18,7 +18,8 @@
 module Handlers.DB.Scheme where
 
 import Data.Aeson
-  ( KeyValue ((.=)),
+  ( FromJSON (parseJSON),
+    KeyValue ((.=)),
     Options (fieldLabelModifier),
     ToJSON (toJSON),
     camelTo2,
@@ -43,6 +44,7 @@ import Database.Persist
         fieldStrict,
         fieldType
       ),
+    entityIdFromJSON,
     entityIdToJSON,
   )
 import Database.Persist.TH
@@ -108,8 +110,14 @@ instance ToJSON User where
         "isAuthor" .= userIsAuthor
       ]
 
+instance FromJSON User where
+  parseJSON = undefined
+
 instance ToJSON (Entity User) where
   toJSON = entityIdToJSON
+
+instance FromJSON (Entity User) where
+  parseJSON = entityIdFromJSON
 
 instance ToJSON Category where
   toJSON = genericToJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}

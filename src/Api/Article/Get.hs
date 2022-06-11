@@ -73,19 +73,19 @@ import Handlers.DB.Scheme
   )
 
 data FormatArticle = FormatArticle
-  { iArticleId :: ArticleId,
-    iArticleTitle :: String,
-    iArticleCreated :: Day,
-    iArticleUser :: P.Entity User,
-    iArticleCategory :: NestCategory,
-    iArticleIsPublished :: Bool,
-    iArticleContent :: String,
-    iArticleImages :: [ImageId]
+  { formatArticleId :: ArticleId,
+    formatArticleTitle :: String,
+    formatArticleCreated :: Day,
+    formatArticleUser :: P.Entity User,
+    formatArticleCategory :: NestCategory,
+    formatArticleIsPublished :: Bool,
+    formatArticleContent :: String,
+    formatArticleImages :: [ImageId]
   }
   deriving (Generic)
 
 instance A.ToJSON FormatArticle where
-  toJSON = A.genericToJSON A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . drop 8}
+  toJSON = A.genericToJSON A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . drop 13}
 
 data NestCategory = NestCategory CategoryId String NestCategory | Non
   deriving (Show)
@@ -168,12 +168,12 @@ toFormatArticle (art, us, cat) = do
   let images = fmap (imageArticleImageId . entityVal) images_
   return $
     FormatArticle
-      { iArticleId = entityKey art,
-        iArticleTitle = articleTitle . entityVal $ art,
-        iArticleCreated = articleCreated . entityVal $ art,
-        iArticleUser = us,
-        iArticleCategory = parseListToNest categories,
-        iArticleIsPublished = articleIsPublished . entityVal $ art,
-        iArticleContent = articleContent . entityVal $ art,
-        iArticleImages = images
+      { formatArticleId = entityKey art,
+        formatArticleTitle = articleTitle . entityVal $ art,
+        formatArticleCreated = articleCreated . entityVal $ art,
+        formatArticleUser = us,
+        formatArticleCategory = parseListToNest categories,
+        formatArticleIsPublished = articleIsPublished . entityVal $ art,
+        formatArticleContent = articleContent . entityVal $ art,
+        formatArticleImages = images
       }

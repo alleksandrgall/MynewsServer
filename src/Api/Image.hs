@@ -5,6 +5,7 @@
 
 module Api.Image where
 
+import Api.Internal.ImageManager
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
@@ -47,10 +48,5 @@ imageServer = getI'
 
 getI' :: ImageId -> App WithCT
 getI' imId = do
-  maybeImage <- runDB $ P.get imId
-  case maybeImage of
-    Nothing -> throwError err400 {errReasonPhrase = "No such image"}
-    Just image -> do
-      let contentTypeHeader = imageMime image
-      imageBytes <- liftIO $ BS.readFile (imagePath image)
-      return $ WithCT (fromString contentTypeHeader) $ Base64.encode imageBytes
+  (contentType, imageBytes) <- getImage imId
+  return $ WithCT (fromString contentType) $ Base64.encode imageBytes

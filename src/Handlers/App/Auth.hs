@@ -3,8 +3,14 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE UndecidableInstances #-}
 
-module Handlers.App.Auth where
+module Handlers.App.Auth
+  ( authContext,
+    Auth (..),
+    AuthContext,
+  )
+where
 
 import Control.Monad (guard)
 import Control.Monad.IO.Class (liftIO)
@@ -64,13 +70,10 @@ plzAuthHeader = ("WWW-Authenticate", "Basic realm=\"User Visible Realm\"")
 
 normalAuthHandler :: Handler -> AuthHandler W.Request (Auth 'Normal)
 normalAuthHandler Handler {..} = mkAuthHandler $ \req -> do
-  credentials <-
-    maybe
-      (S.throwError S.err401 {S.errReasonPhrase = "Authentication required.", S.errHeaders = [plzAuthHeader]})
-      return
-      $ getCredentials req
+  credentials <- maybe (S.throwError S.err401 {S.errReasonPhrase = "Authentication required.", S.errHeaders = [plzAuthHeader]}) return $ getCredentials req
   Auth <$> authenticate credentials (DB.hRunDB hDBHandler) (S.throwError S.err401 {S.errReasonPhrase = "Unauthorized"})
 
+{- Issue https://github.com/haskell/haskell-language-server/issues/773 is still infixed-}
 type instance AuthServerData (S.AuthProtect "admin") = Auth 'Admin
 
 type instance AuthServerData (S.AuthProtect "normal") = Auth 'Normal
