@@ -17,7 +17,6 @@ import Api.Internal.Pagination
     WithOffset,
     selectPagination,
   )
-import Control.Applicative ((<|>))
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Crypto.KDF.BCrypt (hashPassword)
@@ -25,9 +24,8 @@ import Data.Aeson (FromJSON, Options (fieldLabelModifier), ToJSON, camelTo2, def
 import qualified Data.Aeson as A
 import Data.Bool (bool)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as LBS
 import Data.List.NonEmpty (NonEmpty ((:|)))
-import Data.Maybe (fromJust, fromMaybe, isJust, isNothing)
+import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (UTCTime (utctDay), getCurrentTime)
@@ -71,8 +69,7 @@ import Servant
     type (:>),
   )
 import Servant.Multipart
-  ( FileData,
-    FromMultipart (..),
+  ( FromMultipart (..),
     Mem,
     MultipartData,
     MultipartForm,
@@ -173,7 +170,7 @@ data FormatUser = FormatUser
     formatUserIsAdmin :: Bool,
     formatUserIsAuthor :: Bool
   }
-  deriving (Show, Generic)
+  deriving (Show, Generic, Eq)
 
 instance ToJSON FormatUser where
   toJSON = genericToJSON defaultOptions {fieldLabelModifier = camelTo2 '_' . drop 11}

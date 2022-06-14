@@ -41,7 +41,6 @@ import qualified Data.Aeson as A
 import qualified Data.ByteString.Lazy as LBS
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Maybe (fromMaybe, isNothing)
-import Data.String (IsString (fromString))
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time (Day, UTCTime (utctDay), getCurrentTime)
@@ -67,11 +66,9 @@ import Servant
   ( AuthProtect,
     Capture,
     Delete,
-    DeleteAccepted,
     HasServer (ServerT),
     JSON,
     Post,
-    PostAccepted,
     Proxy (..),
     PutCreated,
     QueryParams,

@@ -24,6 +24,7 @@ import Data.Aeson
     ToJSON (toJSON),
     camelTo2,
     defaultOptions,
+    genericParseJSON,
     genericToJSON,
     object,
   )
@@ -80,7 +81,7 @@ User
 Category
     Id          sql=category_id
     name String sql=category_name
-    parent CategoryId Maybe sql=parent_category
+    parent CategoryId Maybe sql=parent_category OnDeleteCascade
     deriving Generic Show
 Article
     Id          sql=article_id
@@ -100,27 +101,17 @@ ImageArticle
     imageId ImageId OnDeleteCascade
 |]
 
-instance ToJSON User where
-  toJSON User {..} =
-    object
-      [ "username" .= userName,
-        "avatar" .= userAvatar,
-        "created" .= userCreated,
-        "isAdmin" .= userIsAdmin,
-        "isAuthor" .= userIsAuthor
-      ]
-
-instance FromJSON User where
-  parseJSON = undefined
-
-instance ToJSON (Entity User) where
-  toJSON = entityIdToJSON
-
-instance FromJSON (Entity User) where
-  parseJSON = entityIdFromJSON
+instance Eq Category where
+  (Category name1 par1) == (Category name2 par2) = (name1 == name2) && (par1 == par2)
 
 instance ToJSON Category where
   toJSON = genericToJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
 
+instance FromJSON Category where
+  parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_'}
+
 instance ToJSON (Entity Category) where
   toJSON = entityIdToJSON
+
+instance FromJSON (Entity Category) where
+  parseJSON = entityIdFromJSON

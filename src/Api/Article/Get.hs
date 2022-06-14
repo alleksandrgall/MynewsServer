@@ -12,6 +12,7 @@ module Api.Article.Get
 where
 
 import Api.Internal.Pagination (Limit, Offset, WithOffset, selectPagination)
+import Api.User (FormatUser (FormatUser), formatEntityUser)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import qualified Data.Aeson as A
@@ -76,7 +77,7 @@ data FormatArticle = FormatArticle
   { formatArticleId :: ArticleId,
     formatArticleTitle :: String,
     formatArticleCreated :: Day,
-    formatArticleUser :: P.Entity User,
+    formatArticleUser :: FormatUser,
     formatArticleCategory :: NestCategory,
     formatArticleIsPublished :: Bool,
     formatArticleContent :: String,
@@ -171,7 +172,7 @@ toFormatArticle (art, us, cat) = do
       { formatArticleId = entityKey art,
         formatArticleTitle = articleTitle . entityVal $ art,
         formatArticleCreated = articleCreated . entityVal $ art,
-        formatArticleUser = us,
+        formatArticleUser = formatEntityUser us,
         formatArticleCategory = parseListToNest categories,
         formatArticleIsPublished = articleIsPublished . entityVal $ art,
         formatArticleContent = articleContent . entityVal $ art,

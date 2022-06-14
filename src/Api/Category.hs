@@ -21,6 +21,7 @@ import Database.Esqueleto.Experimental
     PersistStoreWrite (insert),
     asc,
     from,
+    isNothing,
     orderBy,
     select,
     table,
@@ -29,6 +30,7 @@ import Database.Esqueleto.Experimental
     (&&.),
     (==.),
     (^.),
+    (||.),
   )
 import qualified Database.Persist.Sql as P
 import Handlers.App (App, Auth (..), askPaginationLimit, runDB)
@@ -45,6 +47,7 @@ import Servant
     HasServer (ServerT),
     JSON,
     NoContent (..),
+    Post,
     PostNoContent,
     Proxy (..),
     Put,
@@ -53,6 +56,7 @@ import Servant
     Required,
     ServerError (errReasonPhrase),
     Strict,
+    ToHttpApiData (toUrlPiece),
     err400,
     throwError,
     type (:<|>) (..),
@@ -69,7 +73,7 @@ type CategoryApi =
     :> ( "alter" :> Capture "category_id" CategoryId
            :> QueryParam "name" String
            :> QueryParam "parent" Parent
-           :> PostNoContent
+           :> Post '[JSON] (Entity Category)
        )
     :<|> GetWithPagination '[JSON] (Entity Category)
 
@@ -79,40 +83,19 @@ categoryApi = Proxy
 categoryServer :: ServerT CategoryApi App
 categoryServer = create :<|> alter :<|> getC
 
-newtype Parent = Parent {unParent :: Maybe CategoryId}
-
-instance FromHttpApiData Parent where
-  parseUrlPiece s
-    | T.toLower s == "root" = Right $ Parent Nothing
-    | otherwise = Parent . Just <$> parseUrlPiece @CategoryId s
-
-uniqueSibling :: String -> Parent -> ExceptT String P.SqlPersistM ()
-uniqueSibling name parentId =
-  ExceptT $
-    bool (Left "Already have a category with the same \"name\" and \"parent\".") (Right ()) . null
-      <$> ( select $ do
-              c <- from $ table @Category
-              where_ (c ^. CategoryParent ==. val (unParent parentId) &&. c ^. CategoryName ==. val name)
-              pure c
-          )
-
-parentExists :: Parent -> ExceptT String P.SqlPersistM ()
-parentExists (Parent Nothing) = return ()
-parentExists (Parent (Just catId)) = ExceptT $ bool (Left "Given parent category doesn't exist.") (Right ()) . isJust <$> P.get catId
-
 create :: Auth a -> String -> Parent -> App CategoryId
 create (Auth u) name parentId = do
   logFM InfoS "Creating a category"
   userIsAdmin_ u
   either (\e -> throwError err400 {errReasonPhrase = e}) return
     =<< ( runDB . runExceptT $ do
-            uniqueSibling name parentId
             parentExists parentId
+            uniqueSibling name parentId
         )
   catId <- runDB (insert $ Category name (unParent parentId))
   katipAddContext (sl "cateogory_id" catId) $ logFM InfoS "Category created" >> return catId
 
-alter :: Auth a -> CategoryId -> Maybe String -> Maybe Parent -> App NoContent
+alter :: Auth a -> CategoryId -> Maybe String -> Maybe Parent -> App (Entity Category)
 alter (Auth u) trgId name parentId = do
   katipAddContext (sl "cateogory_id" trgId) $ do
     logFM InfoS "Altering cateogry"
@@ -127,9 +110,9 @@ alter (Auth u) trgId name parentId = do
               uniqueSibling (fromMaybe (categoryName oldCateg) name) (fromMaybe (Parent $ categoryParent oldCateg) parentId)
               parentExists (fromMaybe (Parent $ categoryParent oldCateg) parentId)
           )
-    runDB . P.update trgId $ setsMaybe [MaybeSetter (CategoryName, name), MaybeSetter (CategoryParent, unParent <$> parentId)]
+    alteredCateg <- runDB $ P.updateGet trgId $ setsMaybe [MaybeSetter (CategoryName, name), MaybeSetter (CategoryParent, unParent <$> parentId)]
     logFM InfoS "Category altered"
-    return NoContent
+    return (P.Entity trgId alteredCateg)
 
 getC :: Maybe Limit -> Maybe Offset -> App (WithOffset (Entity Category))
 getC lim off = do
@@ -144,3 +127,33 @@ getC lim off = do
           orderBy [asc (c ^. CategoryId)]
           pure c
     katipAddContext (sl "cateogry_number" (length cats)) $ logFM InfoS "Categories sent" >> return cats
+
+newtype Parent = Parent {unParent :: Maybe CategoryId}
+
+instance FromHttpApiData Parent where
+  parseUrlPiece s
+    | T.toLower s == "root" = Right $ Parent Nothing
+    | otherwise = Parent . Just <$> parseUrlPiece @CategoryId s
+
+instance ToHttpApiData Parent where
+  toUrlPiece (Parent Nothing) = "root"
+  toUrlPiece (Parent (Just catId)) = toUrlPiece catId
+
+uniqueSibling :: String -> Parent -> ExceptT String P.SqlPersistM ()
+uniqueSibling name parentId =
+  ExceptT $
+    bool (Left "Already have a category with the same \"name\" and \"parent\".") (Right ()) . null
+      <$> ( select $ do
+              c <- from $ table @Category
+              where_
+                ( c ^. CategoryName ==. val name
+                    &&. ( c ^. CategoryParent ==. val (unParent parentId)
+                            ||. isNothing (val $ unParent parentId) &&. isNothing (c ^. CategoryParent)
+                        )
+                )
+              pure c
+          )
+
+parentExists :: Parent -> ExceptT String P.SqlPersistM ()
+parentExists (Parent Nothing) = return ()
+parentExists (Parent (Just catId)) = ExceptT $ bool (Left "Given parent category doesn't exist.") (Right ()) . isJust <$> P.get catId

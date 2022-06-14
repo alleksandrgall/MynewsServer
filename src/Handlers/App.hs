@@ -24,7 +24,6 @@ import Handlers.App.Auth as X (Auth (..))
 import Handlers.Katip.Middleware (katipMiddleware, mkApplicationK, runApplicationK)
 import Katip (Severity (InfoS))
 import qualified Network.Wai as W
-import Network.Wai.Handler.Warp (run)
 import qualified Servant as S
 
 convertApp :: Handler -> App a -> S.Handler a

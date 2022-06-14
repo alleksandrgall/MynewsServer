@@ -26,13 +26,7 @@ import Control.Monad.Catch
     onException,
   )
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.Aeson
-  ( Options (fieldLabelModifier),
-    ToJSON (toJSON),
-    camelTo2,
-    defaultOptions,
-    genericToJSON,
-  )
+import Data.Aeson (Options (fieldLabelModifier), ToJSON (toJSON), camelTo2, defaultOptions, genericToJSON)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import Data.Function ((&))
@@ -56,14 +50,7 @@ import Database.Esqueleto.Experimental
   )
 import qualified Database.Persist.Sql as P hiding ((==.))
 import GHC.Generics (Generic)
-import GHC.IO.Exception (IOException (IOError))
-import Handlers.App
-  ( App,
-    askImageRoot,
-    askMaxImageSize,
-    askMaxImagesUpload,
-    runDB,
-  )
+import Handlers.App (App, askImageRoot, askMaxImageSize, askMaxImagesUpload, runDB)
 import Handlers.DB.Scheme
   ( ArticleId,
     EntityField (ImageArticleArticleId, ImageArticleImageId, ImageId),
@@ -72,21 +59,12 @@ import Handlers.DB.Scheme
     ImageId,
   )
 import qualified Katip as K
-import Servant
-  ( ServerError (errReasonPhrase),
-    err400,
-    err413,
-    err415,
-    throwError,
-  )
-import Servant.Multipart
-  ( FileData (fdFileCType, fdFileName, fdPayload),
-    Mem,
-  )
+import Servant (ServerError (errReasonPhrase), err400, err413, err415, throwError)
+import Servant.Multipart (FileData (fdFileCType, fdFileName, fdPayload), Mem)
 import System.Directory (createDirectoryIfMissing, removeFile)
 import System.Directory.Internal.Prelude (hClose, isDoesNotExistError)
 import System.FilePath (takeExtension, (</>))
-import System.Posix (mkstemp, mkstemps)
+import System.Posix (mkstemps)
 
 --Query for saving image data to, generating filepath using newly optaioned image id
 insertImage :: (MonadIO m) => FilePath -> FileData Mem -> SqlPersistT m ImageId
@@ -101,10 +79,10 @@ saveAndInsertImages (f :| fds) inserter = do
     ( \fd -> do
         when
           (T.takeWhile (/= '/') (fdFileCType fd) /= "image")
-          (throwError err415 {errReasonPhrase = "Not an image, fname: " ++ (T.unpack . fdFileName $ fd)})
+          (throwError err415 {errReasonPhrase = "Not an image, file name: " ++ (T.unpack . fdFileName $ fd)})
         when
           (LBS.length (fdPayload fd) > maxFileSize)
-          (throwError err413 {errReasonPhrase = "File is too large, fname: " ++ (T.unpack . fdFileName $ fd)})
+          (throwError err413 {errReasonPhrase = "File is too large, file name: " ++ (T.unpack . fdFileName $ fd)})
     )
     fds
   (year, month', day') <- liftIO $ toGregorian . utctDay <$> getCurrentTime

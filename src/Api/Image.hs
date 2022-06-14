@@ -6,47 +6,48 @@
 module Api.Image where
 
 import Api.Internal.ImageManager
-import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
-import Data.ByteString.Lazy (fromStrict)
-import Data.Data (Typeable)
+import qualified Data.ByteString.Lazy as LBS
+import Data.Data (Proxy (..), Typeable)
 import Data.String (IsString (fromString))
-import qualified Database.Persist.Sql as P
-import Handlers.App (App, runDB)
-import Handlers.DB.Scheme (Image (imageMime, imagePath), ImageId)
+import Handlers.App (App)
+import Handlers.DB.Scheme (ImageId)
 import Servant
   ( Accept (contentType),
     Capture,
     Get,
     HasServer (ServerT),
     MimeRender (..),
-    ServerError (errReasonPhrase),
-    err400,
-    throwError,
     type (:>),
   )
-import Servant.API.ContentTypes (AllCTRender (handleAcceptH))
+import Servant.API (MimeUnrender (mimeUnrender))
+import Servant.API.ContentTypes (AllCTRender (handleAcceptH), MimeUnrender)
 
 data WithCT = WithCT {header :: BS.ByteString, content :: BS.ByteString}
 
 instance AllCTRender '[IMAGE] WithCT where
-  handleAcceptH _ _ (WithCT h c) = Just (fromStrict h, fromStrict c)
+  handleAcceptH _ _ (WithCT h c) = Just (LBS.fromStrict h, LBS.fromStrict c)
 
 data IMAGE deriving (Typeable)
 
 instance MimeRender IMAGE BS.ByteString where
-  mimeRender _ = fromStrict
+  mimeRender _ = LBS.fromStrict
+
+instance MimeUnrender IMAGE WithCT where
+  mimeUnrender _ = Right . LBS.toStrict
 
 instance Accept IMAGE where
   contentType _ = ""
 
 type ImageApi = Capture "image_id" ImageId :> Get '[IMAGE] WithCT
 
-imageServer :: ServerT ImageApi App
-imageServer = getI'
+imageApi = Proxy :: Proxy ImageApi
 
-getI' :: ImageId -> App WithCT
-getI' imId = do
-  (contentType, imageBytes) <- getImage imId
-  return $ WithCT (fromString contentType) $ Base64.encode imageBytes
+imageServer :: ServerT ImageApi App
+imageServer = getI
+
+getI :: ImageId -> App WithCT
+getI imId = do
+  (contentType_, imageBytes) <- getImage imId
+  return $ WithCT (fromString contentType_) $ Base64.encode imageBytes

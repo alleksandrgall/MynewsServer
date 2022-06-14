@@ -13,16 +13,15 @@
 module Api.Internal.Pagination
   ( GetWithPagination,
     selectPagination,
-    Offset,
-    Limit,
-    WithOffset,
+    Offset (..),
+    Limit (..),
+    WithOffset (content),
   )
 where
 
 import Control.Monad.IO.Class (MonadIO)
 import Data.Aeson (FromJSON, ToJSON (toJSON), Value (Number))
 import Data.Aeson.Types (FromJSON (parseJSON))
-import Data.String (IsString (fromString))
 import qualified Database.Esqueleto.Experimental as E
 import Database.Esqueleto.Internal.Internal (SqlSelect)
 import GHC.Generics (Generic)

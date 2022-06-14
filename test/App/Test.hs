@@ -16,8 +16,8 @@ withHandler dbH lH f = do
             Config
               { cImageRoot = return imageDir,
                 cMaxImageSize = return 20000000,
-                cPaginationLimit = return 5,
-                cMaxImagesUpload = return 5
+                cPaginationLimit = return 3,
+                cMaxImagesUpload = return 3
               },
           hDBHandler = dbH,
           hKatipHandler = lH

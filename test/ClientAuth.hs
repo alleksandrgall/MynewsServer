@@ -4,10 +4,7 @@
 module ClientAuth where
 
 import Data.ByteString (ByteString)
-import Data.String (IsString (fromString))
-import qualified Handlers.App.Auth as A
 import Servant (AuthProtect, BasicAuthData (BasicAuthData))
-import Servant.Client (ClientEnv)
 import Servant.Client.Core (AuthClientData, AuthenticatedRequest, basicAuthReq, mkAuthenticatedRequest)
 import Servant.Client.Core.Request (Request)
 

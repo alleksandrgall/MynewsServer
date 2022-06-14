@@ -44,8 +44,10 @@ library
       Handlers.App.Auth
       Handlers.DB
       Handlers.DB.Scheme
+      Handlers.Image
       Handlers.Katip
       Handlers.Katip.Middleware
+      Image.File
       Katip.Prod
   other-modules:
       Paths_metaLampServer
@@ -134,8 +136,10 @@ test-suite metaLampServer-test
   main-is: Spec.hs
   other-modules:
       App.Test
+      Category
       ClientAuth
       DB.Test
+      Image
       Katip.Test
       TestHandler
       User
