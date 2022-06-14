@@ -13,6 +13,7 @@ import Data.Int (Int64)
 import Database.Persist.Sql (SqlPersistM)
 import GHC.Natural (Natural)
 import qualified Handlers.DB as DB
+import qualified Handlers.Image as I
 import qualified Handlers.Katip as L
 import qualified Katip as K
 import qualified Servant as S

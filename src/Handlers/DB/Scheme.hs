@@ -101,6 +101,8 @@ ImageArticle
     imageId ImageId OnDeleteCascade
 |]
 
+deriving instance Show Image
+
 instance Eq Category where
   (Category name1 par1) == (Category name2 par2) = (name1 == name2) && (par1 == par2)
 

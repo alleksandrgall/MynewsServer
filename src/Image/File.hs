@@ -1,29 +1,84 @@
-module Image.File where
+{-# LANGUAGE TypeFamilies #-}
 
-import Control.Monad.Catch (MonadThrow (throwM), handle)
-import Control.Monad.Cont (foldM)
+module Image.File (parseConfig, withHandler) where
+
+import Control.Exception (Exception, throwIO)
 import Control.Monad.IO.Class (liftIO)
+import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
-import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.Configurator as C
+import qualified Data.Configurator.Types as C
+import Data.Int (Int64)
+import qualified Data.Text as T
 import Data.Time (UTCTime (utctDay), getCurrentTime, toGregorian)
-import Handlers.Image
-import System.Directory (createDirectoryIfMissing)
-import System.FilePath ((</>))
+import Handlers.App (askImageRoot)
+import qualified Handlers.DB as DB
+import Handlers.Image (Config (..), Handler (..), ImageEnv)
+import Servant.Multipart (FileData (fdFileName, fdPayload), Mem)
+import System.Directory (createDirectoryIfMissing, removeFile)
+import System.FilePath (takeExtension, (</>))
+import System.IO (hClose)
 import System.Posix (mkstemps)
 
-writeToFiles :: FilePath -> NonEmpty (FileExt, LBS.ByteString) -> IO (NonEmpty FilePath)
-writeToFiles imageRoot fInfs = do
+newtype FatalImageConfigError = FatalImageConfigError String deriving (Show)
+
+instance Exception FatalImageConfigError
+
+confImageRoot :: C.Config -> IO String
+confImageRoot c = do
+  maybeVal <- C.lookup c "imageRoot"
+  maybe (throwIO $ FatalImageConfigError "Location for image storage is required") return maybeVal
+
+confMaxImageSize :: C.Config -> IO Int64
+confMaxImageSize c = do
+  maybeVal <- C.lookup c "maxImageSize"
+  maybe (throwIO $ FatalImageConfigError "Maximum size of image must be provided (in bytes)") return maybeVal
+
+confMaxImagesUpload :: C.Config -> IO Int
+confMaxImagesUpload c = do
+  maybeVal <- C.lookup c "maxImagesUpload"
+  maybe (throwIO $ FatalImageConfigError "Maximum number of simultaneously uploading images must be provided") return maybeVal
+
+parseConfig :: C.Config -> IO (Config IO)
+parseConfig conf =
+  return $
+    Config
+      { cMaxImageSize = confMaxImageSize conf,
+        cMaxNumberOfImages = confMaxImagesUpload conf
+      }
+
+type instance ImageEnv IO = FilePath
+
+prepareFileEnv :: C.Config -> IO FilePath
+prepareFileEnv conf = do
   (year, month', day') <- liftIO $ toGregorian . utctDay <$> getCurrentTime
-  let trgDir = imageRoot </> show year </> show month' </> show day'
-  liftIO $ createDirectoryIfMissing True trgDir
-  case fInfs of
-    (FileExt ext, imageBytes) :| [] -> do
-      (imageFp, h) <- mkstemps trgDir ext
-      handle (handlePut imageFp) (LBS.hPut h imageBytes)
-      return undefined
-  where
-    -- foldM (\acc (FileExt ext, imageBytes) -> do
-    --     (imageFp, h) <- mkstemps trgDir ext
-    --     onException (LBS.hPut h imageBytes))
-    -- return undefined
-    handlePut imageFp e = throwM $ PutException imageFp e
+  imageRoot <- confImageRoot conf
+  let trg = imageRoot </> show year </> show month' </> show day'
+  liftIO $ createDirectoryIfMissing True trg
+  return trg
+
+putInFile :: FilePath -> FileData Mem -> IO FilePath
+putInFile imageRoot fd = do
+  (imageFp, h) <- liftIO $ mkstemps imageRoot (takeExtension (T.unpack $ fdFileName fd))
+  LBS.hPut h (fdPayload fd)
+  hClose h
+  return imageFp
+
+getImageFile :: FilePath -> IO BS.ByteString
+getImageFile = BS.readFile
+
+deleteImageFile :: FilePath -> IO ()
+deleteImageFile = removeFile
+
+withHandler :: C.Config -> DB.Handler -> (Handler IO -> IO ()) -> IO ()
+withHandler conf dbH f = do
+  imageConf <- parseConfig conf
+  f $
+    Handler
+      { hConfig = imageConf,
+        hDBHandler = dbH,
+        hPrepareEnv = prepareFileEnv conf,
+        hPutImage = putInFile,
+        hGetImage = getImageFile,
+        hDeleteImage = deleteImageFile
+      }

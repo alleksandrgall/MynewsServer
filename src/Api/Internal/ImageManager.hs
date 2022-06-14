@@ -44,6 +44,7 @@ import Database.Esqueleto.Experimental
     table,
     val,
     where_,
+    (&&.),
     (==.),
     (^.),
     type (:&) ((:&)),
@@ -140,8 +141,7 @@ deleteImagesArticle imagesToDelete aId = do
         from $
           table @Image
             `innerJoin` table @ImageArticle
-            `on` \(im :& imArticle) -> im ^. ImageId ==. imArticle ^. ImageArticleImageId
-      where_ (imArt ^. ImageArticleArticleId ==. val aId)
+            `on` \(im :& imArticle) -> im ^. ImageId ==. imArticle ^. ImageArticleImageId &&. (imArticle ^. ImageArticleArticleId ==. val aId)
       pure im
   handle handleDeleteException $
     DeleteStatus True
