@@ -11,8 +11,8 @@ News server for metalamp internship.
 5. Setup your local PostgreSQL database and copy a connection string to your config file.
 6. Provide a folder where images will be stored and put it's path to the config file. It should look something like this:
   ```cfg
-   connectionString = 
-   imageRoot = 
+   connectionString =  "host=localhost port=5432 user=uname dbname=news_db password=pass"
+   imageRoot = "/imageRoot"
    maxImageSize = 20971520  
    paginationLimit = 5 
    maxImagesUpload = 5 
