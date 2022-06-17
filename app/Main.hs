@@ -4,12 +4,22 @@ import Api (app)
 import qualified App.Prod as A
 import Config (withConfig)
 import qualified DB.Postgres as P
+import Handlers.DB (migrate_)
+import qualified Image.File as I
 import qualified Katip.Prod as L
 import qualified Network.Wai.Handler.Warp as W
+import System.Directory.Internal.Prelude (getArgs)
 
 main :: IO ()
-main = withConfig "/home/turban/metaLampServer/config/configDev.cfg" $ \conf ->
-  L.parseConfig conf >>= \lConf -> L.withHandler lConf $ \logHand ->
-    P.withHandler conf $ \dbHand ->
-      A.parseConfig conf >>= \appConf -> A.withHandler logHand dbHand appConf $ \appHand ->
-        W.run 3000 $ app appHand
+main = do
+  args <- getArgs
+  case args of
+    [] -> putStrLn "'config_path' --migrate | 'config_path'"
+    confPath : "--migrate" : _ -> withConfig confPath $ \conf ->
+      P.withHandler conf migrate_
+    confPath : _ -> withConfig confPath $ \conf ->
+      L.parseConfig conf >>= \lConf -> L.withHandler lConf $ \logHand ->
+        P.withHandler conf $ \dbHand ->
+          I.withHandler conf dbHand $ \imHand ->
+            A.parseConfig conf >>= \appConf -> A.withHandler logHand dbHand imHand appConf $ \appHand ->
+              W.run 3000 $ app appHand

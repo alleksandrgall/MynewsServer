@@ -32,7 +32,6 @@ library
       Api.Category
       Api.Image
       Api.Internal.Auth
-      Api.Internal.ImageManager
       Api.Internal.Optional
       Api.Internal.Pagination
       Api.User
@@ -42,6 +41,7 @@ library
       Handlers.App
       Handlers.App.App
       Handlers.App.Auth
+      Handlers.App.HandleExcept
       Handlers.DB
       Handlers.DB.Scheme
       Handlers.Image
@@ -136,10 +136,12 @@ test-suite metaLampServer-test
   main-is: Spec.hs
   other-modules:
       App.Test
+      Article
       Category
       ClientAuth
       DB.Test
       Image
+      Image.Test
       Katip.Test
       TestHandler
       User

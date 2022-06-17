@@ -1,33 +1,40 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Api.Image where
 
-import Api.Internal.ImageManager
+import Control.Monad.Catch (MonadCatch)
+import Control.Monad.IO.Class (MonadIO)
+import Control.Monad.Reader (ask)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import Data.Data (Proxy (..), Typeable)
 import Data.String (IsString (fromString))
-import Handlers.App (App)
+import Handlers.App (App, Handler (Handler), hImageHandler)
 import Handlers.DB.Scheme (ImageId)
+import qualified Handlers.Image as I
 import Servant
   ( Accept (contentType),
     Capture,
     Get,
     HasServer (ServerT),
     MimeRender (..),
+    ServerError (errReasonPhrase),
+    err400,
+    throwError,
     type (:>),
   )
-import Servant.API (MimeUnrender (mimeUnrender))
-import Servant.API.ContentTypes (AllCTRender (handleAcceptH), MimeUnrender)
+import Servant.API.ContentTypes (AllCTRender (handleAcceptH), MimeUnrender (mimeUnrender))
 
 data WithCT = WithCT {header :: BS.ByteString, content :: BS.ByteString}
 
 instance AllCTRender '[IMAGE] WithCT where
-  handleAcceptH _ _ (WithCT h c) = Just (LBS.fromStrict h, LBS.fromStrict c)
+  handleAcceptH _ _ (WithCT h c) = Just (LBS.fromStrict h, LBS.fromStrict . Base64.encode $ c)
 
 data IMAGE deriving (Typeable)
 
@@ -35,19 +42,23 @@ instance MimeRender IMAGE BS.ByteString where
   mimeRender _ = LBS.fromStrict
 
 instance MimeUnrender IMAGE WithCT where
-  mimeUnrender _ = Right . LBS.toStrict
+  mimeUnrender _ bs = Right $ WithCT "" (LBS.toStrict bs)
 
 instance Accept IMAGE where
-  contentType _ = ""
+  contentType _ = "image/*"
 
 type ImageApi = Capture "image_id" ImageId :> Get '[IMAGE] WithCT
 
-imageApi = Proxy :: Proxy ImageApi
+imageApi :: Proxy ImageApi
+imageApi = Proxy
 
-imageServer :: ServerT ImageApi App
+imageServer :: (MonadCatch imageM, MonadIO imageM) => ServerT ImageApi (App imageM)
 imageServer = getI
 
-getI :: ImageId -> App WithCT
+getI :: (MonadCatch imageM, MonadIO imageM) => ImageId -> App imageM WithCT
 getI imId = do
-  (contentType_, imageBytes) <- getImage imId
-  return $ WithCT (fromString contentType_) $ Base64.encode imageBytes
+  Handler {..} <- ask
+  imageData <- I.runImage hImageHandler $ I.getImageData imId
+  case imageData of
+    Nothing -> throwError $ err400 {errReasonPhrase = "No image with provided id."}
+    Just (contentType_, imageBytes) -> return $ WithCT (fromString contentType_) imageBytes

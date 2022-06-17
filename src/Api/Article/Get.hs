@@ -5,14 +5,16 @@
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Api.Article.Get
-  ( FormatArticle,
+  ( FormatArticle (..),
+    NestCategory (..),
     getFormatArticle,
     getFormatArticlesPagination,
+    parseListToNest,
   )
 where
 
 import Api.Internal.Pagination (Limit, Offset, WithOffset, selectPagination)
-import Api.User (FormatUser (FormatUser), formatEntityUser)
+import Api.User (FormatUser, formatEntityUser)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import qualified Data.Aeson as A
@@ -83,13 +85,23 @@ data FormatArticle = FormatArticle
     formatArticleContent :: String,
     formatArticleImages :: [ImageId]
   }
-  deriving (Generic)
+  deriving (Generic, Show, Eq)
+
+instance A.FromJSON FormatArticle where
+  parseJSON = A.genericParseJSON A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . drop 13}
 
 instance A.ToJSON FormatArticle where
   toJSON = A.genericToJSON A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . drop 13}
 
-data NestCategory = NestCategory CategoryId String NestCategory | Non
-  deriving (Show)
+data NestCategory = NestCategory {nestCId :: CategoryId, nestCName :: String, nestCChildren :: NestCategory} | Non
+  deriving (Show, Eq)
+
+instance A.FromJSON NestCategory where
+  parseJSON (A.Object o) =
+    if null o
+      then pure Non
+      else NestCategory <$> o A..: "id" <*> o A..: "category_name" <*> o A..: "category_sub"
+  parseJSON _ = mempty
 
 instance A.ToJSON NestCategory where
   toJSON Non = A.object []

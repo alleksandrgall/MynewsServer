@@ -19,14 +19,14 @@ import Servant
     throwError,
   )
 
-userIsAdmin_ :: Entity User -> App ()
+userIsAdmin_ :: Entity User -> App imageM ()
 userIsAdmin_ u =
   K.katipAddContext (K.sl "user_id" (entityKey u)) $
     K.katipAddNamespace "Auth admin" $ do
       unless (u & entityVal & userIsAdmin) $ throwError err404
       K.logFM K.InfoS "Auth success"
 
-userAtLeastAuthor_ :: Entity User -> App ()
+userAtLeastAuthor_ :: Entity User -> App imageM ()
 userAtLeastAuthor_ u =
   K.katipAddContext (K.sl "user_id" (entityKey u)) $
     K.katipAddNamespace "Auth author" $ do
@@ -34,7 +34,7 @@ userAtLeastAuthor_ u =
         throwError $ err403 {errReasonPhrase = "Author status required."}
       K.logFM K.InfoS "Auth success"
 
-articleBelongsToUser :: Entity User -> ArticleId -> App ()
+articleBelongsToUser :: Entity User -> ArticleId -> App imageM ()
 articleBelongsToUser u aId = do
   K.katipAddContext (K.sl "user_id" (entityKey u)) $
     K.katipAddNamespace "Auth article owner" $ do

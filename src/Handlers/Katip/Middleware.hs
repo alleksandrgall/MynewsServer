@@ -12,7 +12,7 @@ import Data.ByteString (ByteString)
 import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 import GHC.Generics (Generic)
-import Handlers.Katip
+import Handlers.Katip (Config (cLogContexts, cLogEnv, cLogNamespace), Handler (hConfig))
 import qualified Katip as K
 import Network.HTTP.Types (HttpVersion, Method, Query, Status, queryToQueryText)
 import qualified Network.Wai as W

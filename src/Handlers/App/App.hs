@@ -1,6 +1,10 @@
+{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
+{-# HLINT ignore "Use newtype instead of data" #-}
 
 module Handlers.App.App where
 
@@ -9,7 +13,6 @@ import Control.Monad.Catch (MonadCatch, MonadThrow)
 import Control.Monad.Except (ExceptT, MonadError)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Reader (MonadIO, MonadReader (local), ReaderT (ReaderT), asks)
-import Data.Int (Int64)
 import Database.Persist.Sql (SqlPersistM)
 import GHC.Natural (Natural)
 import qualified Handlers.DB as DB
@@ -18,54 +21,42 @@ import qualified Handlers.Katip as L
 import qualified Katip as K
 import qualified Servant as S
 
-newtype App a = App {unApp :: ReaderT Handler (ExceptT S.ServerError IO) a}
+newtype App imageM a = App {unApp :: ReaderT (Handler imageM) (ExceptT S.ServerError IO) a}
   deriving
     ( Functor,
       Applicative,
       Monad,
       MonadThrow,
       MonadCatch,
-      MonadReader Handler,
+      MonadReader (Handler imageM),
       MonadError S.ServerError,
       MonadIO
     )
 
-data Config = Config
-  { cImageRoot :: App FilePath,
-    cMaxImageSize :: App Int64,
-    cPaginationLimit :: App Natural,
-    cMaxImagesUpload :: App Int
-  }
+data Config imageM = Config
+  {cPaginationLimit :: App imageM Natural}
 
-data Handler = Handler
-  { hConfig :: Config,
+data Handler m = Handler
+  { hConfig :: Config m,
     hDBHandler :: DB.Handler,
-    hKatipHandler :: L.Handler
+    hKatipHandler :: L.Handler,
+    hImageHandler :: I.Handler m
   }
 
-askImageRoot :: App FilePath
-askImageRoot = join $ asks (cImageRoot . hConfig)
-
-askMaxImageSize :: App Int64
-askMaxImageSize = join (asks (cMaxImageSize . hConfig))
-
-askPaginationLimit :: App Natural
+askPaginationLimit :: App imageM Natural
 askPaginationLimit = join (asks (cPaginationLimit . hConfig))
 
-askMaxImagesUpload :: App Int
-askMaxImagesUpload = join (asks (cMaxImagesUpload . hConfig))
-
-runDB :: SqlPersistM a -> App a
+runDB :: SqlPersistM a -> App imageM a
 runDB x = asks (DB.hRunDB . hDBHandler) >>= liftIO . flip ($) x
 
-instance K.Katip App where
+instance K.Katip (App imageM) where
   getLogEnv = asks (L.cLogEnv . L.hConfig . hKatipHandler)
   localLogEnv f (App m) =
     App $
       flip local m $
         \s -> s {hKatipHandler = (hKatipHandler s) {L.hConfig = (L.hConfig . hKatipHandler $ s) {L.cLogEnv = f (L.cLogEnv . L.hConfig . hKatipHandler $ s)}}}
 
-instance K.KatipContext App where
+instance K.KatipContext (App imageM) where
   getKatipContext = asks (L.cLogContexts . L.hConfig . hKatipHandler)
   localKatipContext f (App m) =
     App $

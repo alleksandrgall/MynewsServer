@@ -19,14 +19,12 @@ module Handlers.DB.Scheme where
 
 import Data.Aeson
   ( FromJSON (parseJSON),
-    KeyValue ((.=)),
     Options (fieldLabelModifier),
     ToJSON (toJSON),
     camelTo2,
     defaultOptions,
     genericParseJSON,
     genericToJSON,
-    object,
   )
 import qualified Data.ByteString as BS
 import Data.Time (Day)
@@ -93,7 +91,7 @@ Article
     isPublished Bool
 Image
     Id          sql=image_id
-    mime String
+    ct String
     path String
 ImageArticle
     Id sql=image_article_id

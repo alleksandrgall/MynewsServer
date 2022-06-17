@@ -9,7 +9,6 @@
 module Api.User where
 
 import Api.Internal.Auth (userIsAdmin_)
-import Api.Internal.ImageManager (saveAndInsertImages)
 import Api.Internal.Pagination
   ( GetWithPagination,
     Limit,
@@ -17,8 +16,10 @@ import Api.Internal.Pagination
     WithOffset,
     selectPagination,
   )
+import Control.Monad.Catch (MonadMask)
 import Control.Monad.Except (ExceptT (ExceptT), runExceptT)
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Reader (asks)
 import Crypto.KDF.BCrypt (hashPassword)
 import Data.Aeson (FromJSON, Options (fieldLabelModifier), ToJSON, camelTo2, defaultOptions, genericParseJSON, genericToJSON)
 import qualified Data.Aeson as A
@@ -43,7 +44,8 @@ import Database.Esqueleto.Experimental
 import qualified Database.Persist as P
 import qualified Database.Persist.Sql as P
 import GHC.Generics (Generic)
-import Handlers.App (App, Auth (..), askPaginationLimit, runDB)
+import Handlers.App (App, Auth (..), Handler (hImageHandler), askPaginationLimit, runDB)
+import Handlers.App.HandleExcept (handleFormatExcept, handlePutException)
 import Handlers.DB.Scheme
   ( EntityField (UserId, UserIsAuthor, UserName),
     ImageId,
@@ -51,6 +53,7 @@ import Handlers.DB.Scheme
     User (..),
     UserId,
   )
+import qualified Handlers.Image as I
 import Katip (Severity (InfoS), katipAddContext, logFM, sl)
 import Servant
   ( AuthProtect,
@@ -86,7 +89,7 @@ type UserApi =
 userApi :: Proxy UserApi
 userApi = Proxy
 
-userServer :: ServerT UserApi App
+userServer :: (MonadMask imageM, MonadIO imageM) => ServerT UserApi (App imageM)
 userServer = create :<|> toAuthor :<|> getU
 
 data IncomingUserInfo = IncomingUserInfo
@@ -126,7 +129,7 @@ instance FromMultipart Mem IncomingUserInfo where
           <*> either (\_ -> Right Nothing) (Right . Just) (lookupInput "is_admin" form >>= T.readEither . T.unpack)
           <*> either (\_ -> Right Nothing) (Right . Just) (lookupInput "is_author" form >>= T.readEither . T.unpack)
 
-create :: Auth a -> MultipartData Mem -> App UserId
+create :: (MonadMask imageM, MonadIO imageM) => Auth a -> MultipartData Mem -> App imageM UserId
 create (Auth u) form = do
   logFM InfoS "Creating a user"
   userIsAdmin_ u
@@ -140,7 +143,8 @@ create (Auth u) form = do
       maybeAvId <- case lookupFile "avatar" form of
         Left _ -> return Nothing
         Right fd -> do
-          (avId :| _) <- saveAndInsertImages (fd :| []) (const $ return ())
+          imH <- asks hImageHandler
+          (avId :| _) <- handlePutException . handleFormatExcept $ I.runImage imH $ I.saveImages (const $ return ()) (fd :| [])
           return (Just avId)
       dbU <- liftIO $ incUserInfoToDbUser incUser maybeAvId
       uId <- runDB $ insert dbU
@@ -152,7 +156,7 @@ usernameFree name = ExceptT $ bool (Right ()) (Left "Username is already taken")
 userExists :: String -> ExceptT String P.SqlPersistM ()
 userExists name = ExceptT $ bool (Left "User does not exists.") (Right ()) . isJust <$> getBy (UniqueUserName name)
 
-toAuthor :: Auth a -> String -> App NoContent
+toAuthor :: Auth a -> String -> App imageM NoContent
 toAuthor (Auth u) name = do
   userIsAdmin_ u
   either (\e -> throwError err400 {errReasonPhrase = e}) return
@@ -189,7 +193,7 @@ formatEntityUser entUser =
       formatUserIsAuthor = userIsAuthor . P.entityVal $ entUser
     }
 
-getU :: Maybe Limit -> Maybe Offset -> App (WithOffset FormatUser)
+getU :: Maybe Limit -> Maybe Offset -> App imageM (WithOffset FormatUser)
 getU lim off = do
   katipAddContext (sl "limit" lim <> sl "offset" off) $ do
     logFM InfoS "Sending users"

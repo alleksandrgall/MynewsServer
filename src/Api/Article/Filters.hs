@@ -37,7 +37,8 @@ import Handlers.DB.Scheme
       ),
     User,
   )
-import Servant (FromHttpApiData (parseUrlPiece), QueryParam, type (:>))
+import Servant (FromHttpApiData (parseUrlPiece), QueryParam, ToHttpApiData, type (:>))
+import Servant.API (ToHttpApiData (toUrlPiece))
 
 type GetWithFilters (t :: [*]) a =
   QueryParam "created_since" Day :> QueryParam "created_until" Day :> QueryParam "created_at" Day
@@ -88,6 +89,12 @@ sortByF_ _ _ _ imageNum (Just ImageNum) = [asc imageNum]
 sortByF_ art _ _ _ Nothing = [asc (art ^. ArticleId)]
 
 data SortBy = Date | Author | Category_ | ImageNum deriving (Show)
+
+instance ToHttpApiData SortBy where
+  toUrlPiece Date = "date"
+  toUrlPiece Author = "author"
+  toUrlPiece Category_ = "category"
+  toUrlPiece ImageNum = "image_number"
 
 instance FromHttpApiData SortBy where
   parseUrlPiece t

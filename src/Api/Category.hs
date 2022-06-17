@@ -46,9 +46,7 @@ import Servant
     FromHttpApiData (parseUrlPiece),
     HasServer (ServerT),
     JSON,
-    NoContent (..),
     Post,
-    PostNoContent,
     Proxy (..),
     Put,
     QueryParam,
@@ -80,10 +78,10 @@ type CategoryApi =
 categoryApi :: Proxy CategoryApi
 categoryApi = Proxy
 
-categoryServer :: ServerT CategoryApi App
+categoryServer :: ServerT CategoryApi (App imageM)
 categoryServer = create :<|> alter :<|> getC
 
-create :: Auth a -> String -> Parent -> App CategoryId
+create :: Auth a -> String -> Parent -> App imageM CategoryId
 create (Auth u) name parentId = do
   logFM InfoS "Creating a category"
   userIsAdmin_ u
@@ -95,7 +93,7 @@ create (Auth u) name parentId = do
   catId <- runDB (insert $ Category name (unParent parentId))
   katipAddContext (sl "cateogory_id" catId) $ logFM InfoS "Category created" >> return catId
 
-alter :: Auth a -> CategoryId -> Maybe String -> Maybe Parent -> App (Entity Category)
+alter :: Auth a -> CategoryId -> Maybe String -> Maybe Parent -> App imageM (Entity Category)
 alter (Auth u) trgId name parentId = do
   katipAddContext (sl "cateogory_id" trgId) $ do
     logFM InfoS "Altering cateogry"
@@ -114,7 +112,7 @@ alter (Auth u) trgId name parentId = do
     logFM InfoS "Category altered"
     return (P.Entity trgId alteredCateg)
 
-getC :: Maybe Limit -> Maybe Offset -> App (WithOffset (Entity Category))
+getC :: Maybe Limit -> Maybe Offset -> App imageM (WithOffset (Entity Category))
 getC lim off = do
   katipAddContext (sl "limit" lim <> sl "offset" off) $ do
     logFM InfoS "Sending categories"

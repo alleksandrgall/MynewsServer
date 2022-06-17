@@ -5,6 +5,7 @@ module Utils where
 
 import Control.Exception (Exception, throwIO)
 import Control.Monad (void)
+import Control.Monad.IO.Class (liftIO)
 import Crypto.KDF.BCrypt (hashPassword)
 import qualified Data.ByteString as BS
 import Data.Data (Proxy)
@@ -18,13 +19,16 @@ import qualified Handlers.App as A
 import Handlers.App.Auth (AuthContext)
 import Handlers.DB (Handler (hRunDB))
 import Handlers.DB.Scheme
-import Network.HTTP.Types (Status (statusCode))
+import qualified Handlers.Image as I
+import Image.Test (ImageTestIO)
+import qualified Image.Test as I
+import Network.HTTP.Types (Status (statusCode, statusMessage))
 import qualified Network.Wai.Handler.Warp as Warp
 import Servant (HasServer, ServerT)
 import Servant.Client (ClientError (FailureResponse), ResponseF (responseStatusCode))
 import Test.Hspec (expectationFailure)
 
-withApp :: (HasServer api AuthContext) => A.Handler -> Proxy api -> ServerT api App -> (Warp.Port -> IO ()) -> IO ()
+withApp :: (HasServer api AuthContext) => A.Handler m -> Proxy api -> ServerT api (App m) -> (Warp.Port -> IO ()) -> IO ()
 withApp h api server = Warp.testWithApplication (pure $ A.serve_ h api server)
 
 shouldBeRightOr :: (Exception e) => String -> Either e a -> IO a
@@ -37,12 +41,18 @@ shouldBeJustOr :: String -> Maybe a -> IO a
 shouldBeJustOr s Nothing = expectationFailure s >> throwIO ExpectedJust
 shouldBeJustOr _ (Just x) = return x
 
-clearUsers :: A.Handler -> IO ()
+clearUsers :: A.Handler m -> IO ()
 clearUsers h = hRunDB (A.hDBHandler h) $ do
   users <- P.selectList [UserName P.!=. "admin"] []
   let avatars = [im | Just im <- map (userAvatar . P.entityVal) users]
   P.deleteWhere [UserName P.!=. "admin"]
   P.deleteWhere [ImageId P.<-. avatars]
+
+clearImages :: A.Handler ImageTestIO -> IO ()
+clearImages h = hRunDB (A.hDBHandler h) $ do
+  images <- P.selectList [ImageId P.>=. (ImageKey . P.SqlBackendKey $ 1)] []
+  liftIO . I.unImageTestIO $ mapM_ (I.hDeleteImage (A.hImageHandler h) . (imagePath . P.entityVal)) images
+  P.deleteWhere [ImageId P.>=. (ImageKey . P.SqlBackendKey $ 1)]
 
 createTestUser :: String -> String -> Maybe Day -> Maybe ImageId -> Bool -> Bool -> IO User
 createTestUser uName pass mDate ava isAdmin_ isAuthor = do
@@ -58,18 +68,30 @@ createTestUser uName pass mDate ava isAdmin_ isAuthor = do
         userIsAuthor = isAuthor
       }
 
-clearCategories :: A.Handler -> IO ()
+clearCategories :: A.Handler m -> IO ()
 clearCategories h = hRunDB (A.hDBHandler h) $ P.deleteWhere [CategoryId P.>=. (CategoryKey . P.SqlBackendKey $ 1)]
+
+clearArticles :: A.Handler ImageTestIO -> IO ()
+clearArticles h = do
+  hRunDB (A.hDBHandler h) $ P.deleteWhere [ArticleId P.>=. (ArticleKey . P.SqlBackendKey $ 1)]
+  clearUsers h
+  clearImages h
+  clearCategories h
 
 respondsWithErr :: Int -> Either ClientError a -> IO ()
 respondsWithErr errCode (Left (FailureResponse _ fResp)) = do
   if (statusCode . responseStatusCode $ fResp) == errCode
     then pure ()
-    else expectationFailure $ "Server didn't respond with " <> show errCode
+    else
+      expectationFailure $
+        "Server didn't respond with " <> show errCode <> " but with: "
+          <> (show . statusCode . responseStatusCode $ fResp)
+          <> " err mes: "
+          <> (show . statusMessage . responseStatusCode $ fResp)
 respondsWithErr _ (Left e) = throwIO e
 respondsWithErr _ _ = expectationFailure "Server didn't respond with an error"
 
-putTestCategoryTreeAndReturn :: A.Handler -> IO [P.Entity Category]
+putTestCategoryTreeAndReturn :: A.Handler m -> IO [P.Entity Category]
 putTestCategoryTreeAndReturn h = do
   let cat01 = Category "cat01" Nothing
       cat02 = Category "cat02" Nothing

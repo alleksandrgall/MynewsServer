@@ -11,7 +11,6 @@ import qualified Data.Configurator.Types as C
 import Data.Int (Int64)
 import qualified Data.Text as T
 import Data.Time (UTCTime (utctDay), getCurrentTime, toGregorian)
-import Handlers.App (askImageRoot)
 import qualified Handlers.DB as DB
 import Handlers.Image (Config (..), Handler (..), ImageEnv)
 import Servant.Multipart (FileData (fdFileName, fdPayload), Mem)
@@ -76,6 +75,7 @@ withHandler conf dbH f = do
   f $
     Handler
       { hConfig = imageConf,
+        hRunImage = liftIO,
         hDBHandler = dbH,
         hPrepareEnv = prepareFileEnv conf,
         hPutImage = putInFile,

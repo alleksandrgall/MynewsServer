@@ -60,7 +60,7 @@ authenticate (username, pass) runDB onFail = do
       let validationResult = validatePassword pass (userPasswordHash . entityVal $ ent)
       if validationResult then return ent else onFail
 
-adminAuthHandler :: Handler -> AuthHandler W.Request (Auth 'Admin)
+adminAuthHandler :: Handler imageM -> AuthHandler W.Request (Auth 'Admin)
 adminAuthHandler Handler {..} = mkAuthHandler $ \req -> do
   credentials <- maybe (S.throwError S.err404) return $ getCredentials req
   Auth <$> authenticate credentials (DB.hRunDB hDBHandler) (S.throwError S.err404)
@@ -68,17 +68,17 @@ adminAuthHandler Handler {..} = mkAuthHandler $ \req -> do
 plzAuthHeader :: Header
 plzAuthHeader = ("WWW-Authenticate", "Basic realm=\"User Visible Realm\"")
 
-normalAuthHandler :: Handler -> AuthHandler W.Request (Auth 'Normal)
+normalAuthHandler :: Handler imageM -> AuthHandler W.Request (Auth 'Normal)
 normalAuthHandler Handler {..} = mkAuthHandler $ \req -> do
   credentials <- maybe (S.throwError S.err401 {S.errReasonPhrase = "Authentication required.", S.errHeaders = [plzAuthHeader]}) return $ getCredentials req
   Auth <$> authenticate credentials (DB.hRunDB hDBHandler) (S.throwError S.err401 {S.errReasonPhrase = "Unauthorized"})
 
-{- Issue https://github.com/haskell/haskell-language-server/issues/773 is still infixed-}
+{- Issue https://github.com/haskell/haskell-language-server/issues/773 is still unfixed-}
 type instance AuthServerData (S.AuthProtect "admin") = Auth 'Admin
 
 type instance AuthServerData (S.AuthProtect "normal") = Auth 'Normal
 
 type AuthContext = '[AuthHandler W.Request (Auth 'Admin), AuthHandler W.Request (Auth 'Normal)]
 
-authContext :: Handler -> S.Context AuthContext
+authContext :: Handler imageM -> S.Context AuthContext
 authContext h = adminAuthHandler h S.:. normalAuthHandler h S.:. S.EmptyContext

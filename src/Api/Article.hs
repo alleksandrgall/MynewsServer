@@ -1,9 +1,13 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
 
 module Api.Article where
@@ -27,40 +31,48 @@ import Api.Article.Get
     getFormatArticlesPagination,
   )
 import Api.Internal.Auth (articleBelongsToUser, userAtLeastAuthor_)
-import Api.Internal.ImageManager
-  ( DeleteStatus (deleteStatus),
-    deleteImagesArticle,
-    saveAndInsertImages,
-  )
 import Api.Internal.Optional (MaybeSetter (..), setsMaybe)
 import Api.Internal.Pagination (Limit, Offset, WithOffset)
-import Control.Applicative ((<|>))
 import Control.Monad (unless, void, when)
-import Control.Monad.IO.Class (liftIO)
-import qualified Data.Aeson as A
-import qualified Data.ByteString.Lazy as LBS
+import Control.Monad.Catch (MonadCatch, MonadMask)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Reader (asks)
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import Data.Maybe (fromMaybe, isNothing)
 import qualified Data.Text as T
-import Data.Text.Encoding (encodeUtf8)
 import Data.Time (Day, UTCTime (utctDay), getCurrentTime)
 import Database.Esqueleto.Experimental
   ( BackendKey (SqlBackendKey),
+    Value (unValue),
+    from,
+    innerJoin,
+    on,
+    select,
+    table,
+    val,
+    where_,
     (&&.),
+    (==.),
+    (^.),
+    type (:&) ((:&)),
   )
 import qualified Database.Persist as P
 import GHC.Generics (Generic)
-import Handlers.App (App, Auth (Auth), askPaginationLimit, runDB)
+import Handlers.App (App, Auth (Auth), Handler (hImageHandler), askPaginationLimit, runDB)
+import Handlers.App.HandleExcept (handleDeleteException, handleFormatExcept, handlePutException)
 import Handlers.DB.Scheme
   ( Article (Article),
     ArticleId,
-    Category,
     CategoryId,
+    EntityField (ImageArticleArticleId, ImageArticleImageId, ImageId),
+    Image,
     ImageArticle (ImageArticle),
     ImageId,
     Key (CategoryKey),
     UserId,
   )
+import Handlers.Image
+import qualified Handlers.Image as I
 import qualified Katip as K
 import Servant
   ( AuthProtect,
@@ -89,23 +101,16 @@ import Servant.Multipart
 import qualified Text.Read as T
 
 type ArticleApi =
-  AuthProtect "normal"
-    :> ( "create" :> MultipartForm Mem (MultipartData Mem) :> PutCreated '[JSON] FormatArticle -- json article and photoes in form
-           :<|> "alter" :> Capture "article_id" ArticleId
-             :> ( MultipartForm Mem (MultipartData Mem) :> Post '[JSON] FormatArticle -- alter article by sending new IncomingArticle and/or images
-                    :<|> QueryParams "image_id" ImageId :> Delete '[JSON] DeleteStatus -- returns number of deleted images
-                )
-       )
+  AuthProtect "normal" :> "create" :> MultipartForm Mem (MultipartData Mem) :> PutCreated '[JSON] FormatArticle -- json article and photoes in form
+    :<|> AuthProtect "normal" :> "alter" :> Capture "article_id" ArticleId :> MultipartForm Mem (MultipartData Mem) :> Post '[JSON] FormatArticle -- alter article by sending new IncomingArticle and/or images
+    :<|> AuthProtect "normal" :> "alter" :> Capture "article_id" ArticleId :> QueryParams "image_id" ImageId :> Delete '[JSON] DeleteStatus -- returns number of deleted images
     :<|> ("get" :> GetWithFilters '[JSON] FormatArticle)
 
 articleApi :: Proxy ArticleApi
 articleApi = Proxy
 
-articleServer :: ServerT ArticleApi App
-articleServer = authorApi :<|> getA
-  where
-    authorApi user = create user :<|> alter user
-    alter user articleId = alterAdd user articleId :<|> alterDelete user articleId
+articleServer :: (MonadMask imageM, MonadIO imageM) => ServerT ArticleApi (App imageM)
+articleServer = create :<|> alterAdd :<|> alterDelete :<|> getA
 
 --  Creating article
 data IncomingArticle = IncomingArticle
@@ -116,11 +121,8 @@ data IncomingArticle = IncomingArticle
   }
   deriving (Show, Generic)
 
-instance A.FromJSON IncomingArticle where
-  parseJSON = A.genericParseJSON A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . drop 8}
-
 instance FromMultipart Mem IncomingArticle where
-  fromMultipart form = (lookupInput "article" form >>= A.eitherDecode . LBS.fromStrict . encodeUtf8) <|> parseMultipart
+  fromMultipart form = parseMultipart
     where
       parseMultipart =
         IncomingArticle <$> (T.unpack <$> lookupInput "title" form)
@@ -133,7 +135,7 @@ incomingArticleToDbArticle IncomingArticle {..} uId = do
   day <- utctDay <$> getCurrentTime
   return $ Article incomingTitle day uId incomingCategoryId incomingContent (fromMaybe False incomingIsPublished)
 
-create :: Auth a -> MultipartData Mem -> App FormatArticle
+create :: (MonadMask imageM, MonadIO imageM) => Auth a -> MultipartData Mem -> App imageM FormatArticle
 create (Auth u) form = do
   K.logFM K.InfoS "Creating an article"
   userAtLeastAuthor_ u
@@ -144,7 +146,11 @@ create (Auth u) form = do
       aId <- runDB $ P.insert dbArticle
       case files form of
         [] -> pure ()
-        (fd : fds) -> void $ saveAndInsertImages (fd :| fds) (void . P.insert . ImageArticle aId)
+        (fd : fds) -> do
+          imH <- asks hImageHandler
+          void $
+            handlePutException . handleFormatExcept $
+              I.runImage imH $ saveImages (void . P.insert . ImageArticle aId) (fd :| fds)
       K.katipAddContext (K.sl "article_id" aId) $
         K.logFM K.InfoS "Article created"
       maybeFormatArt <- runDB $ getFormatArticle aId
@@ -156,7 +162,7 @@ create (Auth u) form = do
         maybeFormatArt
 
 -- Altering article by adding pictures or changing non picture fields
-alterAdd :: Auth a -> ArticleId -> MultipartData Mem -> App FormatArticle
+alterAdd :: (MonadMask imageM, MonadIO imageM) => Auth a -> ArticleId -> MultipartData Mem -> App imageM FormatArticle
 alterAdd (Auth u) aId form = do
   K.katipAddContext (K.sl "article_id" aId) $ do
     K.logFM K.InfoS "Altering an article"
@@ -169,7 +175,10 @@ alterAdd (Auth u) aId form = do
         when (isEmptyImages && isEmptySetters) $ throwError err400 {errReasonPhrase = "Nothing to be set."}
         case files form of
           [] -> pure ()
-          (fd : fds) -> void $ saveAndInsertImages (fd :| fds) (void . P.insert . ImageArticle aId)
+          (fd : fds) -> do
+            imH <- asks hImageHandler
+            void . handlePutException . handleFormatExcept $
+              I.runImage imH $ saveImages (void . P.insert . ImageArticle aId) (fd :| fds)
         unless isEmptySetters $ runDB $ P.update aId (setsMaybe setters)
         K.logFM K.InfoS "Article altered"
         maybeFormatArt <- runDB $ getFormatArticle aId
@@ -181,12 +190,23 @@ alterAdd (Auth u) aId form = do
           maybeFormatArt
 
 --Deleting pictures from the article
-alterDelete :: Auth a -> ArticleId -> [ImageId] -> App DeleteStatus
+alterDelete :: (MonadCatch imageM, MonadIO imageM) => Auth a -> ArticleId -> [ImageId] -> App imageM DeleteStatus
 alterDelete (Auth u) aId imIds = do
   K.katipAddContext (K.sl "article_id" aId) $ do
     K.logFM K.InfoS "Deleting images form article"
     articleBelongsToUser u aId
-    delStatus <- deleteImagesArticle imIds aId
+    articleImages <- runDB $
+      select $ do
+        (im :& imArt) <-
+          from $
+            table @Image
+              `innerJoin` table @ImageArticle
+              `on` \(im :& imArt) -> im ^. ImageId ==. imArt ^. ImageArticleImageId
+        where_ (imArt ^. ImageArticleArticleId ==. val aId)
+        return (im ^. ImageId)
+    let filteredImIds = filter (`elem` map unValue articleImages) imIds
+    imH <- asks hImageHandler
+    delStatus <- handleDeleteException $ I.runImage imH $ I.deleteImages filteredImIds
     K.katipAddContext (K.sl "delete_success" (deleteStatus delStatus)) $ K.logFM K.InfoS "Images deleted" >> return delStatus
 
 -- Getting article with filters, search and sort
@@ -195,14 +215,14 @@ getA ::
   Maybe Day -> -- created_until
   Maybe Day -> -- created_at
   Maybe String -> -- author_name
-  Maybe (Key Category) -> -- category
+  Maybe CategoryId -> -- category
   Maybe String -> -- title_has
   Maybe String -> -- content_has
   Maybe String -> -- search
   Maybe SortBy -> -- sortParam
   Maybe Limit ->
   Maybe Offset ->
-  App (WithOffset FormatArticle)
+  App imageM (WithOffset FormatArticle)
 getA createdSince createdUntil createdAt authorName categoryId_ titleHas contentHas searchStr sortBy_ lim off = do
   K.katipAddContext
     ( K.sl "created_since" createdSince <> K.sl "created_until" createdUntil

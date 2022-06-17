@@ -30,7 +30,7 @@ alter :: AuthenticatedRequest (AuthProtect "admin") -> CategoryId -> Maybe Strin
 getC :: Maybe Limit -> Maybe Offset -> ClientM (WithOffset (P.Entity Category))
 (create :<|> alter :<|> getC) = client categoryApi
 
-categorySpec :: A.Handler -> Spec
+categorySpec :: A.Handler m -> Spec
 categorySpec h = before (clearCategories h) $
   around (withApp h categoryApi categoryServer) $ do
     baseUrl <- runIO $ parseBaseUrl "http://localhost"
@@ -41,7 +41,7 @@ categorySpec h = before (clearCategories h) $
     categoryAlter h clientEnv
     categoryGetC h clientEnv
 
-categoryCreate :: A.Handler -> (Port -> ClientEnv) -> SpecWith Port
+categoryCreate :: A.Handler m -> (Port -> ClientEnv) -> SpecWith Port
 categoryCreate h clientEnv =
   describe "PUT category/create" $ do
     context "Correct auth" $ do
@@ -85,7 +85,7 @@ categoryCreate h clientEnv =
         runClientM (create authInfo "new Categ" (Parent Nothing)) (clientEnv port)
           >>= respondsWithErr 404
 
-categoryAlter :: A.Handler -> (Port -> ClientEnv) -> SpecWith Port
+categoryAlter :: A.Handler m -> (Port -> ClientEnv) -> SpecWith Port
 categoryAlter h clientEnv =
   describe "POST category/alter" $ do
     context "Correct auth" $ do
@@ -128,7 +128,7 @@ categoryAlter h clientEnv =
         runClientM (alter authInfo toBeAlteredCateg (Just "Altered Name") (Just . Parent . Just $ newChildCateg)) (clientEnv port)
           >>= respondsWithErr 404
 
-categoryGetC :: A.Handler -> (Port -> ClientEnv) -> SpecWith Port
+categoryGetC :: A.Handler m -> (Port -> ClientEnv) -> SpecWith Port
 categoryGetC h clientEnv =
   describe "GET category/get" $ do
     it "sorts the list by category id in the ascending order" $ \port -> do

@@ -13,9 +13,6 @@ import Handlers.App.App as X
   ( App (..),
     Config (..),
     Handler (..),
-    askImageRoot,
-    askMaxImageSize,
-    askMaxImagesUpload,
     askPaginationLimit,
     runDB,
   )
@@ -26,23 +23,23 @@ import Katip (Severity (InfoS))
 import qualified Network.Wai as W
 import qualified Servant as S
 
-convertApp :: Handler -> App a -> S.Handler a
+convertApp :: Handler imageM -> App imageM a -> S.Handler a
 convertApp h (App m) =
   liftIO (runExceptT . runReaderT m $ h) >>= \case
     Right v -> pure v
     Left err -> throwError err
 
-toServer :: S.HasServer api AuthContext => Handler -> Proxy api -> S.ServerT api App -> S.Server api
+toServer :: S.HasServer api AuthContext => Handler imageM -> Proxy api -> S.ServerT api (App imageM) -> S.Server api
 toServer h api = S.hoistServerWithContext api (Proxy @AuthContext) (convertApp h)
 
-serveApp :: S.HasServer api AuthContext => Handler -> Proxy api -> S.ServerT api App -> W.Application
+serveApp :: S.HasServer api AuthContext => Handler imageM -> Proxy api -> S.ServerT api (App imageM) -> W.Application
 serveApp h api appServer = S.serveWithContext api (authContext h) (toServer h api appServer)
 
-serveWithKatip :: S.HasServer api AuthContext => Handler -> Proxy api -> S.ServerT api App -> W.Application
+serveWithKatip :: S.HasServer api AuthContext => Handler imageM -> Proxy api -> S.ServerT api (App imageM) -> W.Application
 serveWithKatip h api appServer =
   let withMiddleWare = katipMiddleware InfoS . mkApplicationK $ \localKatipHandler ->
         serveApp (h {hKatipHandler = localKatipHandler}) api appServer
    in runApplicationK (hKatipHandler h) withMiddleWare
 
-serve_ :: S.HasServer api AuthContext => Handler -> Proxy api -> S.ServerT api App -> W.Application
+serve_ :: S.HasServer api AuthContext => Handler imageM -> Proxy api -> S.ServerT api (App imageM) -> W.Application
 serve_ = serveWithKatip
