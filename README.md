@@ -9,7 +9,8 @@ News server for metalamp internship.
    `stack build` for building app and downloading dependencies.
 4. Make a `.cfg` file, or use a default one in `MynewsServer/config/config.cfg` (there you can also find what can be configured)
 5. Setup your local PostgreSQL database and copy a connection string to your config file.
-6. Provide a folder where images will be stored and put it's path to the config file. It should look something like this:
+6. Provide a folder where images will be stored and put it's path to the config file. 
+7. Config file should look something like this:
   ```cfg
    connectionString =  "host=localhost port=5432 user=uname dbname=news_db password=pass"
    imageRoot = "/imageRoot"
