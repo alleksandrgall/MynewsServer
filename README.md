@@ -7,22 +7,11 @@ News server for metalamp internship.
 2. Clone this repository as described [here](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) or with `git clone https://github.com/alleksandrgall/MynewsServer` command if you have `git` installed.
 3. `stack setup` for downloading compiler, 
    `stack build` for building app and downloading dependencies.
-4. Make a `.cfg` file, or use a default one in `MynewsServer/config/config.cfg` (there you can also find what can be configured)
+4. Make a `.cfg` file, or use the template `MynewsServer/config/config_template.cfg` (there you can also find what can be configured).
 5. Setup your local PostgreSQL database and copy a connection string to your config file.
 6. Provide a folder where images will be stored and put it's path to the config file. 
-7. Config file should look something like this:
-  ```cfg
-   connectionString =  "host=localhost port=5432 user=uname dbname=news_db password=pass"
-   imageRoot = "/imageRoot"
-   maxImageSize = 20971520  
-   paginationLimit = 5 
-   maxImagesUpload = 5 
-   logLevel = "info" 
-   logOut = "stdout" 
-   logVerb = "V3" 
-  ```
-6. Populate server database by typing `stack run %YOUR_CONFIG_PATH% --migrate`.
-7. Run the server by typing `stack run %YOUR_CONFIG_PATH%`
+7. Populate server database by typing `stack run %YOUR_CONFIG_PATH% --migrate`.
+8. Run the server by typing `stack run %YOUR_CONFIG_PATH%`
 
 ## Project structer
 * `app/Main` - Parses command arguments and runs server logic with production handlers.

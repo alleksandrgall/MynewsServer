@@ -2,7 +2,5 @@
 *~
 .vscode
 .history
-temp
 images
 config/configDev.cfg
-src/Dev.hs

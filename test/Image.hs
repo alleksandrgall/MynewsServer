@@ -11,14 +11,32 @@ import qualified Database.Persist as P
 import qualified Database.Persist.Sql as P
 import qualified Handlers.App as A
 import qualified Handlers.DB as DB
-import Handlers.DB.Scheme
-import Handlers.Image
+import Handlers.DB.Scheme (Image (Image), ImageId, Key (ImageKey))
+import Handlers.Image (Handler (hPrepareEnv, hPutImage))
 import Image.Test (ImageTestIO (unImageTestIO))
 import Network.HTTP.Client (defaultManagerSettings, newManager)
-import Network.Wai.Handler.Warp
+import Network.Wai.Handler.Warp (Port)
 import Servant.Client
+  ( BaseUrl (baseUrlPort),
+    ClientEnv,
+    ClientM,
+    client,
+    mkClientEnv,
+    parseBaseUrl,
+    runClientM,
+  )
 import Servant.Multipart (FileData (FileData, fdFileCType, fdPayload), Mem)
 import Test.Hspec
+  ( Spec,
+    SpecWith,
+    around,
+    before,
+    context,
+    describe,
+    it,
+    runIO,
+    shouldBe,
+  )
 import Utils (clearImages, respondsWithErr, shouldBeRightOr, withApp)
 
 getI :: ImageId -> ClientM WithCT
