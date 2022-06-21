@@ -4,7 +4,6 @@ module Image where
 
 import Api.Image (WithCT (WithCT), imageApi, imageServer)
 import Control.Monad.IO.Class (liftIO)
-import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import Data.String (IsString (fromString))
 import qualified Data.Text as T
@@ -38,7 +37,7 @@ imageGetI :: A.Handler ImageTestIO -> (Port -> ClientEnv) -> SpecWith Port
 imageGetI h clientEnv =
   describe "GET /image" $ do
     context "existing image id" $ do
-      it "returns an image encoded in base64" $ \port -> do
+      it "returns an image" $ \port -> do
         let fd = FileData "someImName" "" "image/jpeg" "imContent" :: FileData Mem
         imFp <- liftIO . unImageTestIO $ do
           env <- hPrepareEnv (A.hImageHandler h)
@@ -47,7 +46,7 @@ imageGetI h clientEnv =
         WithCT _ imReturned <-
           runClientM (getI imId) (clientEnv port)
             >>= shouldBeRightOr "Internal server or client error"
-        imReturned `shouldBe` (Base64.encode . LBS.toStrict . fdPayload $ fd)
+        imReturned `shouldBe` (LBS.toStrict . fdPayload $ fd)
 
     context "not existing image" $ do
       it "responds with 400" $ \port -> do

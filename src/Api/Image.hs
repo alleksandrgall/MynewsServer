@@ -11,7 +11,6 @@ import Control.Monad.Catch (MonadCatch)
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Reader (ask)
 import qualified Data.ByteString as BS
-import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import Data.Data (Proxy (..), Typeable)
 import Data.String (IsString (fromString))
@@ -34,7 +33,7 @@ import Servant.API.ContentTypes (AllCTRender (handleAcceptH), MimeUnrender (mime
 data WithCT = WithCT {header :: BS.ByteString, content :: BS.ByteString}
 
 instance AllCTRender '[IMAGE] WithCT where
-  handleAcceptH _ _ (WithCT h c) = Just (LBS.fromStrict h, LBS.fromStrict . Base64.encode $ c)
+  handleAcceptH _ _ (WithCT h c) = Just (LBS.fromStrict h, LBS.fromStrict c)
 
 data IMAGE deriving (Typeable)
 
