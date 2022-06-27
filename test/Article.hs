@@ -689,6 +689,28 @@ articleGetA h clientEnv = describe "GET article/get/" $ do
                          $ articles
                      )
 
+    context "multiple filters" $
+      it "responds with articles applicable to all filters and sorted according to the provided sort" $ \port -> do
+        pId <- hRunDB (A.hDBHandler h) $ P.insert $ Category "Parent" Nothing
+        filterCategId <- hRunDB (A.hDBHandler h) $ P.insert filterCateg
+        articles <- fillDBWithTestArticles h testUser (testCateg pId) filterCategId searchCateg
+        let titleHas = "titleHas"
+        pagLimit <-
+          runExceptT (flip runReaderT h . A.unApp $ A.askPaginationLimit)
+            >>= shouldBeRightOr "Can't get default pagination limit"
+        curDay <- utctDay <$> getCurrentTime
+        resp <-
+          runClientM (getA Nothing (Just curDay) Nothing Nothing Nothing (Just titleHas) Nothing Nothing (Just Author) Nothing (Just . Offset $ 1)) (clientEnv port)
+            >>= shouldBeRightOr "Internal client server error"
+        content resp
+          `shouldBe` ( take (fromIntegral pagLimit)
+                         . sortBy (\fa1 fa2 -> (formatUserUsername . formatArticleUser $ fa1) `compare` (formatUserUsername . formatArticleUser $ fa2))
+                         . filter (\FormatArticle {..} -> formatArticleCreated < curDay)
+                         . filter (\FormatArticle {..} -> any (isPrefixOf titleHas) (tails formatArticleTitle))
+                         . drop 1
+                         $ articles
+                     )
+
 data TestArticle = TestArticle
   { taUser :: UserId,
     taCat :: CategoryId,
