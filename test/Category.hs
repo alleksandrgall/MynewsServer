@@ -91,6 +91,18 @@ categoryAlter h clientEnv =
     context "Correct auth" $ do
       let authInfo = authenticateAdmin ("admin", "admin")
 
+      context "Parent doesn't exist" $ do
+        it "responds with 400" $ \port -> do
+          newCateg <- hRunDB (A.hDBHandler h) (P.insert $ Category "New name" Nothing)
+          runClientM (alter authInfo newCateg Nothing (Just . Parent . Just . CategoryKey . P.SqlBackendKey $ 10)) (clientEnv port)
+            >>= respondsWithErr 400
+
+      context "Self parent" $ do
+        it "responds with 400" $ \port -> do
+          newCateg <- hRunDB (A.hDBHandler h) (P.insert $ Category "New name" Nothing)
+          runClientM (alter authInfo newCateg Nothing (Just . Parent . Just $ newCateg)) (clientEnv port)
+            >>= respondsWithErr 400
+
       context "Nothing to update provided" $ do
         it "responds with 400" $ \port -> do
           newCateg <- hRunDB (A.hDBHandler h) (P.insert $ Category "New name" Nothing)
