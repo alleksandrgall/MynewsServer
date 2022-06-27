@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralisedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Image.Test where
+module Internal.Image.Test where
 
 import Control.Exception (Exception, throwIO)
 import Control.Monad.Catch (MonadCatch, MonadMask, MonadThrow)

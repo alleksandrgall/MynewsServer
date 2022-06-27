@@ -9,7 +9,6 @@ module User where
 
 import Api.Internal.Pagination (Limit (Limit), Offset (Offset), WithOffset, content)
 import Api.User (FormatUser (formatUserId), IncomingUserInfo (..), formatEntityUser, userApi, userServer)
-import ClientAuth (authenticateAdmin)
 import Control.Exception (throwIO)
 import Control.Monad (void)
 import Control.Monad.Except (runExceptT)
@@ -29,8 +28,10 @@ import qualified Handlers.App as A
 import Handlers.DB (Handler (hRunDB))
 import Handlers.DB.Scheme (Unique (UniqueUserName), User (userAvatar, userCreated, userIsAdmin, userIsAuthor, userName, userPasswordHash), UserId)
 import qualified Handlers.Image as I
-import Image.Test (ImageTestIO)
-import qualified Image.Test as I
+import Internal.ClientAuth (authenticateAdmin)
+import Internal.Image.Test (ImageTestIO)
+import qualified Internal.Image.Test as I
+import Internal.Utils (clearUsers, createTestUser, respondsWithErr, shouldBeJustOr, shouldBeRightOr, withApp)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.HTTP.Types (Status (statusCode))
 import Network.Wai.Handler.Warp (Port)
@@ -41,7 +42,6 @@ import Servant.Client.Core (AuthenticatedRequest)
 import Servant.Multipart (FileData (FileData), Input (Input), Mem, MultipartData (MultipartData, files))
 import Servant.Multipart.Client (genBoundary)
 import Test.Hspec (Expectation, Spec, SpecWith, around, before, context, describe, expectationFailure, it, runIO, shouldBe)
-import Utils (clearUsers, createTestUser, respondsWithErr, shouldBeJustOr, shouldBeRightOr, withApp)
 
 create :: AuthenticatedRequest (AuthProtect "admin") -> (LBS.ByteString, MultipartData Mem) -> ClientM UserId
 toAuthor :: AuthenticatedRequest (AuthProtect "admin") -> String -> ClientM NoContent

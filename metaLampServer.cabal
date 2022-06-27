@@ -135,17 +135,17 @@ test-suite metaLampServer-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      App.Test
       Article
       Category
-      ClientAuth
-      DB.Test
       Image
-      Image.Test
-      Katip.Test
-      TestHandler
+      Internal.App.Test
+      Internal.ClientAuth
+      Internal.DB.Test
+      Internal.Image.Test
+      Internal.Katip.Test
+      Internal.TestHandler
+      Internal.Utils
       User
-      Utils
       Paths_metaLampServer
   hs-source-dirs:
       test

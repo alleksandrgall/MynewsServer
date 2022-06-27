@@ -11,7 +11,6 @@ import Api.Article.Get (FormatArticle (FormatArticle, formatArticleCategory, for
 import Api.Internal.Optional (MaybeSetter (MaybeSetter))
 import Api.Internal.Pagination (Limit (Limit), Offset (Offset), WithOffset (content))
 import Api.User (FormatUser (formatUserUsername), formatEntityUser)
-import ClientAuth (authenticateNormal)
 import Control.Monad (void, zipWithM, zipWithM_)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.IO.Class (liftIO)
@@ -44,7 +43,9 @@ import Handlers.DB.Scheme
   )
 import Handlers.Image (DeleteStatus (DeleteStatus), Handler (hDBHandler))
 import qualified Handlers.Image as I
-import qualified Image.Test as I
+import Internal.ClientAuth (authenticateNormal)
+import qualified Internal.Image.Test as I
+import Internal.Utils (clearArticles, createTestUser, respondsWithErr, shouldBeJustOr, shouldBeRightOr, withApp)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai.Handler.Warp (Port)
 import Servant (AuthProtect, type (:<|>) ((:<|>)))
@@ -64,7 +65,6 @@ import Test.Hspec
     runIO,
     shouldBe,
   )
-import Utils (clearArticles, createTestUser, respondsWithErr, shouldBeJustOr, shouldBeRightOr, withApp)
 
 create :: AuthenticatedRequest (AuthProtect "normal") -> (LBS.ByteString, MultipartData Mem) -> ClientM FormatArticle
 alterAdd :: AuthenticatedRequest (AuthProtect "normal") -> ArticleId -> (LBS.ByteString, MultipartData Mem) -> ClientM FormatArticle

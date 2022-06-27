@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Katip.Test (Handler, withHandler) where
+module Internal.Katip.Test (Handler, withHandler) where
 
 import Handlers.Katip (Config (Config), Handler (..))
 import Katip (initLogEnv)

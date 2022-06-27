@@ -1,4 +1,4 @@
-module App.Test (Handler, withHandler) where
+module Internal.App.Test (Handler, withHandler) where
 
 import Handlers.App
 import qualified Handlers.DB as DB

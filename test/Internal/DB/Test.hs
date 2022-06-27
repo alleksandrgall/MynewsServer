@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module DB.Test (Handler, withHandler) where
+module Internal.DB.Test (Handler, withHandler) where
 
 import Conduit (runResourceT)
 import Control.Monad (void)

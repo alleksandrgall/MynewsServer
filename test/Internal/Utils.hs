@@ -1,7 +1,7 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module Utils where
+module Internal.Utils where
 
 import Control.Exception (Exception, throwIO)
 import Control.Monad (void)
@@ -20,8 +20,8 @@ import Handlers.App.Auth (AuthContext)
 import Handlers.DB (Handler (hRunDB))
 import Handlers.DB.Scheme
 import qualified Handlers.Image as I
-import Image.Test (ImageTestIO)
-import qualified Image.Test as I
+import Internal.Image.Test (ImageTestIO)
+import qualified Internal.Image.Test as I
 import Network.HTTP.Types (Status (statusCode, statusMessage))
 import qualified Network.Wai.Handler.Warp as Warp
 import Servant (HasServer, ServerT)

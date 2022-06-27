@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module ClientAuth where
+module Internal.ClientAuth where
 
 import Data.ByteString (ByteString)
 import Servant (AuthProtect, BasicAuthData (BasicAuthData))

@@ -6,7 +6,6 @@ module Category where
 
 import Api.Category (Parent (Parent), categoryApi, categoryServer)
 import Api.Internal.Pagination (Limit (Limit), Offset (Offset), WithOffset (..))
-import ClientAuth (authenticateAdmin)
 import Control.Exception (throwIO)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.Reader (ReaderT (runReaderT))
@@ -16,6 +15,8 @@ import qualified Database.Persist.Sql as P
 import qualified Handlers.App as A
 import Handlers.DB (Handler (hRunDB))
 import Handlers.DB.Scheme (Category (..), CategoryId, Key (CategoryKey), Unique (UniqueUserName))
+import Internal.ClientAuth (authenticateAdmin)
+import Internal.Utils (clearCategories, putTestCategoryTreeAndReturn, respondsWithErr, shouldBeJustOr, shouldBeRightOr, withApp)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.HTTP.Types (Status (statusCode))
 import Network.Wai.Handler.Warp (Port)
@@ -23,7 +24,6 @@ import Servant (AuthProtect, type (:<|>) ((:<|>)))
 import Servant.Client (BaseUrl (baseUrlPort), ClientEnv, ClientM, client, mkClientEnv, parseBaseUrl, runClientM)
 import Servant.Client.Core (AuthenticatedRequest)
 import Test.Hspec (Expectation, Spec, SpecWith, around, before, context, describe, it, runIO, shouldBe)
-import Utils (clearCategories, putTestCategoryTreeAndReturn, respondsWithErr, shouldBeJustOr, shouldBeRightOr, withApp)
 
 create :: AuthenticatedRequest (AuthProtect "admin") -> String -> Parent -> ClientM CategoryId
 alter :: AuthenticatedRequest (AuthProtect "admin") -> CategoryId -> Maybe String -> Maybe Parent -> ClientM (P.Entity Category)

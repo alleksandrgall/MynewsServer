@@ -13,7 +13,8 @@ import qualified Handlers.App as A
 import qualified Handlers.DB as DB
 import Handlers.DB.Scheme (Image (Image), ImageId, Key (ImageKey))
 import Handlers.Image (Handler (hPrepareEnv, hPutImage))
-import Image.Test (ImageTestIO (unImageTestIO))
+import Internal.Image.Test (ImageTestIO (unImageTestIO))
+import Internal.Utils (clearImages, respondsWithErr, shouldBeRightOr, withApp)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai.Handler.Warp (Port)
 import Servant.Client
@@ -37,7 +38,6 @@ import Test.Hspec
     runIO,
     shouldBe,
   )
-import Utils (clearImages, respondsWithErr, shouldBeRightOr, withApp)
 
 getI :: ImageId -> ClientM WithCT
 getI = client imageApi

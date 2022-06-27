@@ -1,7 +1,7 @@
 import Article (articleSpec)
 import Category (categorySpec)
 import Image (imageSpec)
-import TestHandler (withTestHandler)
+import Internal.TestHandler (withTestHandler)
 import User (userSpec)
 
 main :: IO ()
