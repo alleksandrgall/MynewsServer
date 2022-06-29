@@ -31,9 +31,7 @@ makeAdmin = do
       }
 
 migrate_ :: Handler -> IO ()
-migrate_ h = do
-  admin <- makeAdmin
-  void $
-    hRunDB h $ do
-      void $ P.insert admin
-      P.runMigration migrateAll
+migrate_ h = hRunDB h $ P.runMigration migrateAll
+
+createDefaultAdmin :: Handler -> IO ()
+createDefaultAdmin h = makeAdmin >>= void . hRunDB h . P.insertUnique

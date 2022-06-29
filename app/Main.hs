@@ -4,7 +4,7 @@ import Api (app)
 import qualified App.Prod as A
 import Config (withConfig)
 import qualified DB.Postgres as P
-import Handlers.DB (migrate_)
+import Handlers.DB (createDefaultAdmin, migrate_)
 import qualified Image.File as I
 import qualified Katip.Prod as L
 import qualified Network.Wai.Handler.Warp as W
@@ -15,8 +15,12 @@ main = do
   args <- getArgs
   case args of
     [] -> putStrLn "'config_path' --migrate | 'config_path'"
-    confPath : "--migrate" : _ -> withConfig confPath $ \conf ->
-      P.withHandler conf migrate_
+    confPath : "--migrate" : _ -> do
+      withConfig confPath $ \conf -> P.withHandler conf migrate_
+      putStrLn "Migrated succesfully"
+    confPath : "--admin" : _ -> do
+      withConfig confPath $ \conf -> P.withHandler conf createDefaultAdmin
+      putStrLn "Default admin created"
     confPath : _ -> withConfig confPath $ \conf ->
       L.parseConfig conf >>= \lConf -> L.withHandler lConf $ \logHand ->
         P.withHandler conf $ \dbHand ->

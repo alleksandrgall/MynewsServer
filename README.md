@@ -10,7 +10,7 @@ News server for metalamp internship.
 4. Make a `.cfg` file, or use the template `MynewsServer/config/config_template.cfg` (there you can also find what can be configured).
 5. Setup your local PostgreSQL database and copy a connection string to your config file.
 6. Provide a folder where images will be stored and put it's path to the config file. 
-7. Populate server database by typing `stack run %YOUR_CONFIG_PATH% --migrate`.
+7. Populate server database by typing `stack run -- %YOUR_CONFIG_PATH% --migrate`.
 8. Run the server by typing `stack run %YOUR_CONFIG_PATH%`
 
 ## Project structer
