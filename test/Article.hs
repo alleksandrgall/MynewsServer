@@ -1,13 +1,12 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ExplicitNamespaces #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
-
 module Article where
 
-import Api.Article (IncomingArticle (IncomingArticle, incomingCategoryId, incomingContent, incomingIsPublished, incomingTitle), articleApi, articleServer)
+import Api.Article (IncomingArticle (..), articleApi, articleServer)
 import Api.Article.Filters (SortBy (Author, Category_, Date, ImageNum))
-import Api.Article.Get (FormatArticle (FormatArticle, formatArticleCategory, formatArticleContent, formatArticleCreated, formatArticleId, formatArticleImages, formatArticleIsPublished, formatArticleTitle, formatArticleUser), NestCategory (nestCId, nestCName), getFormatArticle, parseListToNest)
+import Api.Article.Get
+  ( FormatArticle (..),
+    getFormatArticle,
+    parseListToNest,
+  )
 import Api.Internal.Optional (MaybeSetter (MaybeSetter))
 import Api.Internal.Pagination (Limit (Limit), Offset (Offset), WithOffset (content))
 import Api.User (FormatUser (formatUserUsername), formatEntityUser)
@@ -28,7 +27,7 @@ import qualified Database.Persist.Sql as P
 import qualified Handlers.App as A
 import Handlers.DB (Handler (hRunDB))
 import Handlers.DB.Scheme
-  ( Article (Article, articleCategoryId, articleContent, articleCreated, articleIsPublished, articleTitle, articleUserId),
+  ( Article (..),
     ArticleId,
     Category (Category, categoryParent),
     CategoryId,
@@ -45,7 +44,7 @@ import Handlers.Image (DeleteStatus (DeleteStatus), Handler (hDBHandler))
 import qualified Handlers.Image as I
 import Internal.ClientAuth (authenticateNormal)
 import qualified Internal.Image.Test as I
-import Internal.Utils (clearArticles, createTestUser, respondsWithErr, shouldBeJustOr, shouldBeRightOr, withApp)
+import Internal.Utils (clearArticles, createTestUser, getNestId, getNestName, respondsWithErr, shouldBeJustOr, shouldBeRightOr, withApp)
 import Network.HTTP.Client (defaultManagerSettings, newManager)
 import Network.Wai.Handler.Warp (Port)
 import Servant (AuthProtect, type (:<|>) ((:<|>)))
@@ -558,7 +557,7 @@ articleGetA h clientEnv = describe "GET article/get/" $ do
           >>= shouldBeRightOr "Internal client server error"
       content resp
         `shouldBe` ( take (fromIntegral pagLimit) . sortBy (\fa1 fa2 -> formatArticleId fa1 `compare` formatArticleId fa2)
-                       . filter (\FormatArticle {..} -> nestCId formatArticleCategory == filterCategId)
+                       . filter (\FormatArticle {..} -> getNestId formatArticleCategory == Just filterCategId)
                        $ articles
                    )
 
@@ -615,7 +614,9 @@ articleGetA h clientEnv = describe "GET article/get/" $ do
                        . filter
                          ( \FormatArticle {..} ->
                              any (isPrefixOf search) (tails formatArticleContent)
-                               || any (isPrefixOf search) (tails (nestCName formatArticleCategory))
+                               || case getNestName formatArticleCategory of
+                                 Nothing -> False
+                                 Just name -> any (isPrefixOf search) (tails name)
                                || any (isPrefixOf search) (tails (formatUserUsername formatArticleUser))
                          )
                        $ articles
@@ -668,7 +669,7 @@ articleGetA h clientEnv = describe "GET article/get/" $ do
             >>= shouldBeRightOr "Internal client server error"
         content resp
           `shouldBe` ( take (fromIntegral pagLimit)
-                         . sortBy (\fa1 fa2 -> (nestCName . formatArticleCategory $ fa1) `compare` (nestCName . formatArticleCategory $ fa2))
+                         . sortBy (\fa1 fa2 -> (getNestName . formatArticleCategory $ fa1) `compare` (getNestName . formatArticleCategory $ fa2))
                          $ articles
                      )
 

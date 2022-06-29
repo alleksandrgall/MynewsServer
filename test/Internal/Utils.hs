@@ -3,6 +3,7 @@
 
 module Internal.Utils where
 
+import Api.Article.Get (NestCategory (NestCategory, Non))
 import Control.Exception (Exception, throwIO)
 import Control.Monad (void)
 import Control.Monad.IO.Class (liftIO)
@@ -110,3 +111,13 @@ putTestCategoryTreeAndReturn h = do
   let cat31 = Category "cat31" $ Just $ P.entityKey cat12Ent
   cat31Ent <- hRunDB (A.hDBHandler h) (P.insertEntity cat31)
   return [cat01Ent, cat02Ent, cat11Ent, cat12Ent, cat13Ent, cat21Ent, cat22Ent, cat31Ent]
+
+getNestId :: NestCategory -> Maybe CategoryId
+getNestId Non = Nothing
+getNestId (NestCategory cId _ Non) = Just cId
+getNestId (NestCategory _ _ rest) = getNestId rest
+
+getNestName :: NestCategory -> Maybe String
+getNestName Non = Nothing
+getNestName (NestCategory _ name Non) = Just name
+getNestName (NestCategory _ _ rest) = getNestName rest

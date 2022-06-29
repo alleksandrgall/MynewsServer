@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Image where
 
 import Api.Image (WithCT (WithCT), imageApi, imageServer)

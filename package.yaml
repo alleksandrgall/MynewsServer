@@ -56,7 +56,14 @@ library:
   source-dirs: src
   default-extensions: 
     - OverloadedStrings
-
+    - LambdaCase
+    - RecordWildCards
+    - DataKinds
+    - TypeOperators
+    - MultiParamTypeClasses
+    - TypeFamilies
+    - RankNTypes
+    - FlexibleInstances
 executables:
   metaLampServer-exe:
     main:                Main.hs
@@ -76,6 +83,12 @@ tests:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
+    default-extensions:
+    - OverloadedStrings
+    - RecordWildCards
+    - DataKinds
+    - ExplicitNamespaces 
+
     dependencies:
     - metaLampServer
     - servant-client

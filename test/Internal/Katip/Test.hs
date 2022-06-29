@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module Internal.Katip.Test (Handler, withHandler) where
 
 import Handlers.Katip (Config (Config), Handler (..))

@@ -1,5 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
-
 module Katip.Prod (Handler, parseConfig, withHandler) where
 
 import Data.Char (toLower)
@@ -49,7 +47,7 @@ instance C.Configured LogOut where
   convert _ = Nothing
 
 mkScribeFromConfig :: C.Config -> IO K.Scribe
-mkScribeFromConfig cnf = return $ K.Scribe write finale permit
+mkScribeFromConfig cnf = return $ K.Scribe write (return ()) permit
   where
     write :: forall a. K.LogItem a => K.Item a -> IO ()
     write i = do
@@ -63,8 +61,6 @@ mkScribeFromConfig cnf = return $ K.Scribe write finale permit
         Stderr -> do
           hSetBuffering stderr LineBuffering
           T.hPutStrLn stderr $ toLazyText $ K.bracketFormat True verb i
-    finale :: IO ()
-    finale = return ()
     permit :: K.PermitFunc
     permit i = do
       (MySeverity sev) <- C.lookupDefault (MySeverity K.InfoS) cnf "logLevel"

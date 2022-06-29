@@ -93,7 +93,7 @@ instance A.FromJSON FormatArticle where
 instance A.ToJSON FormatArticle where
   toJSON = A.genericToJSON A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . drop 13}
 
-data NestCategory = NestCategory {nestCId :: CategoryId, nestCName :: String, nestCChildren :: NestCategory} | Non
+data NestCategory = NestCategory CategoryId String NestCategory | Non
   deriving (Show, Eq)
 
 instance A.FromJSON NestCategory where

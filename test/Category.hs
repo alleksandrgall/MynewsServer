@@ -1,7 +1,3 @@
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE ExplicitNamespaces #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Category where
 
 import Api.Category (Parent (Parent), categoryApi, categoryServer)
