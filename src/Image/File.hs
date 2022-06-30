@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeFamilies #-}
-
 module Image.File (parseConfig, withHandler) where
 
 import Control.Exception (Exception, throwIO)

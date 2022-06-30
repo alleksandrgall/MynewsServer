@@ -1,10 +1,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE RankNTypes #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Use newtype instead of data" #-}
 
 module Handlers.App.App where
 
@@ -33,7 +29,7 @@ newtype App imageM a = App {unApp :: ReaderT (Handler imageM) (ExceptT S.ServerE
       MonadIO
     )
 
-data Config imageM = Config
+newtype Config imageM = Config
   {cPaginationLimit :: App imageM Natural}
 
 data Handler m = Handler

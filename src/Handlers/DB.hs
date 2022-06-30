@@ -1,5 +1,3 @@
-{-# LANGUAGE RankNTypes #-}
-
 module Handlers.DB where
 
 import Control.Monad (void)

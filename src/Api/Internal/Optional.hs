@@ -1,6 +1,4 @@
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
 
 module Api.Internal.Optional where
 
@@ -32,4 +30,5 @@ instance FromMultipart Mem [MaybeSetter Article] where
         MaybeSetter (ArticleIsPublished, lookupF (T.readMaybe . T.unpack) "is_published")
       ]
     where
+      lookupF :: (T.Text -> Maybe a) -> T.Text -> Maybe a
       lookupF f name = either (const Nothing) f (lookupInput name form)

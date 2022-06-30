@@ -1,5 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
-
 module Api.Internal.Auth where
 
 import Control.Monad (unless)

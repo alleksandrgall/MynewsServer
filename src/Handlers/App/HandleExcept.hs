@@ -1,5 +1,3 @@
-{-# LANGUAGE LambdaCase #-}
-
 module Handlers.App.HandleExcept where
 
 import Control.Monad.Catch (MonadThrow (throwM), handle)

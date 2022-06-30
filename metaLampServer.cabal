@@ -55,6 +55,14 @@ library
       src
   default-extensions:
       OverloadedStrings
+      LambdaCase
+      RecordWildCards
+      DataKinds
+      TypeOperators
+      MultiParamTypeClasses
+      TypeFamilies
+      RankNTypes
+      FlexibleInstances
   build-depends:
       aeson
     , base >=4.7 && <5
@@ -149,6 +157,11 @@ test-suite metaLampServer-test
       Paths_metaLampServer
   hs-source-dirs:
       test
+  default-extensions:
+      OverloadedStrings
+      RecordWildCards
+      DataKinds
+      ExplicitNamespaces
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson

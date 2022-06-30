@@ -2,7 +2,7 @@ module Main where
 
 import Api (app)
 import qualified App.Prod as A
-import Config (withConfig)
+import Config (askPort, withConfig)
 import qualified DB.Postgres as P
 import Handlers.DB (migrate_)
 import qualified Image.File as I
@@ -21,5 +21,7 @@ main = do
       L.parseConfig conf >>= \lConf -> L.withHandler lConf $ \logHand ->
         P.withHandler conf $ \dbHand ->
           I.withHandler conf dbHand $ \imHand ->
-            A.parseConfig conf >>= \appConf -> A.withHandler logHand dbHand imHand appConf $ \appHand ->
-              W.run 3000 $ app appHand
+            A.parseConfig conf >>= \appConf -> A.withHandler logHand dbHand imHand appConf $ \appHand -> do
+              p <- askPort conf
+              putStrLn $ "Running on port " <> show p
+              W.run p $ app appHand
