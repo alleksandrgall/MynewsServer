@@ -7,8 +7,7 @@
 
 #NO SPACES IN FILEPATH
 
-#example: curl/Article/create.sh -t Curl Title -n Curl Content / 
-#-i "curl/imagesForTesting/image2.jpg;curl/imagesForTesting/image1.jpg" -p false -y 1 -c Author:AuthorPass
+#example: curl/Article/create.sh -t "Curl Title" -n "Curl Content" -i "curl/imagesForTesting/image2.jpg;curl/imagesForTesting/image1.jpg" -p false -y 1 -c Author:AuthorPass
 
 while getopts ":t:n:i:p:y:c:" opt; do
   case $opt in
@@ -45,6 +44,8 @@ do
   imageForms="$imageForms -F file${index}=@${image}"  
   index=$(($index + 1))
 done
+
+echo -n $cred | base64
 
 curl -v --request PUT \
   --url http://localhost:3000/article/create \

@@ -1,5 +1,5 @@
 #-c? - credentials
-#-i - image id to be get
+#-i - image id to get
 
 #example: curl/Image/getI.sh -i 1
 

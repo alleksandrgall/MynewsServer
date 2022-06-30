@@ -1,3 +1,5 @@
+#!/bin/bash
+
 #-n - username
 #-a - user avatar path
 #-d - should user be admin
@@ -34,13 +36,20 @@ while getopts ":n:a:d:t:p:c:" opt; do
   esac
 done
 
+if [ ! -z "${avatar}" ] 
+then 
+    avatarForm=(--form "avatar=@$avatar")
+else
+    avatarForm=()
+fi
+
 curl -v --request PUT \
 --url http://localhost:3000/user/create \
 --header "Authorization: Basic `echo -n $cred | base64`" \
 --header 'Content-Type: multipart/form-data' \
 --header 'content-type: multipart/form-data; boundary=---011000010111000001101001' \
 --form "name=$name" \
---form "password=$password" \
+--form "password=$pass" \
 --form "is_admin=$isAdmin" \
 --form "is_author=$isAuthor" \
---form "avatar=@${avatar}"
+${avatarForm[@]}

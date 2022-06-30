@@ -1,8 +1,8 @@
 #-d - article id
-#-i - ids of to be deleted images's
+#-i - ids of the images you want to delete from the article
 #-c - credentials
 
-#example curl/Article/alterDelete.sh -c Author:AuthorPass -i "69;68;67;70;71;72;73;74;75;76;77;78;79" -d 72
+#example curl/Article/alterDelete.sh -c Author:AuthorPass -i "69;68" -d 8
 
 while getopts ":d:t:n:i:p:y:c:" opt; do
   case $opt in
