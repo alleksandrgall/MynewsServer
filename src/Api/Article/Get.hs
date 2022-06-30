@@ -18,7 +18,10 @@ import Api.User (FormatUser, formatEntityUser)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
 import qualified Data.Aeson as A
+import qualified Data.Aeson.Types as A
 import Data.Function ((&))
+import Data.Functor ((<&>))
+import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Map as M
 import qualified Data.Text as T
 import Data.Time (Day)
@@ -34,6 +37,7 @@ import Database.Esqueleto.Experimental
     on,
     orderBy,
     select,
+    selectOne,
     subSelectCount,
     table,
     union_,
@@ -93,18 +97,23 @@ instance A.FromJSON FormatArticle where
 instance A.ToJSON FormatArticle where
   toJSON = A.genericToJSON A.defaultOptions {A.fieldLabelModifier = A.camelTo2 '_' . drop 13}
 
-data NestCategory = NestCategory CategoryId String NestCategory | Non
+data NestCategory = NestCategory CategoryId String NestCategory | Last CategoryId String
   deriving (Show, Eq)
 
 instance A.FromJSON NestCategory where
-  parseJSON (A.Object o) =
-    if null o
-      then pure Non
-      else NestCategory <$> o A..: "id" <*> o A..: "category_name" <*> o A..: "category_sub"
+  parseJSON (A.Object o) = do
+    maybeNext <- o A..:? "category_sub" :: A.Parser (Maybe NestCategory)
+    case maybeNext of
+      Nothing -> Last <$> o A..: "id" <*> o A..: "category_name"
+      (Just next) -> NestCategory <$> o A..: "id" <*> o A..: "category_name" <&> ($ next)
   parseJSON _ = mempty
 
 instance A.ToJSON NestCategory where
-  toJSON Non = A.object []
+  toJSON (Last i name) =
+    A.object
+      [ "id" A..= i,
+        "category_name" A..= T.pack name
+      ]
   toJSON (NestCategory i name children) =
     A.object
       [ "id" A..= i,
@@ -112,11 +121,11 @@ instance A.ToJSON NestCategory where
         "category_sub" A..= A.toJSON children
       ]
 
-parseListToNest :: [P.Entity Category] -> NestCategory
-parseListToNest ents =
-  let mEnt = M.fromList $ map (\ent -> (categoryParent . P.entityVal $ ent, ent)) ents
+parseListToNest :: NonEmpty (P.Entity Category) -> NestCategory
+parseListToNest (mainEnt :| restEnts) =
+  let mEnt = M.fromList $ map (\ent -> (categoryParent . P.entityVal $ ent, ent)) restEnts
       root = M.lookup Nothing mEnt
-      children Nothing = Non
+      children Nothing = Last (entityKey mainEnt) (categoryName . entityVal $ mainEnt)
       children (Just c) =
         NestCategory (P.entityKey c) (categoryName . P.entityVal $ c) $ children . M.lookup (Just $ P.entityKey c) $ mEnt
    in children root
@@ -159,13 +168,13 @@ getFormatArticlesPagination filters order limit_ maxLimit offset_ = do
 
 toFormatArticle :: (Entity Article, Entity User, Entity Category) -> SqlPersistM FormatArticle
 toFormatArticle (art, us, cat) = do
-  categories <- select $ do
+  restCategories <- select $ do
     from
       =<< withRecursive
         ( do
-            cat_ <- from $ table @Category
-            where_ $ cat_ ^. CategoryId ==. val (entityKey cat)
-            pure cat_
+            firstParent <- from $ table @Category
+            where_ $ just (firstParent ^. CategoryId) ==. val (categoryParent . entityVal $ cat)
+            pure firstParent
         )
         union_
         ( \self -> do
@@ -177,6 +186,7 @@ toFormatArticle (art, us, cat) = do
                     cSelf ^. CategoryParent ==. just (c ^. CategoryId)
             pure c
         )
+  let categories = cat :| restCategories
   images_ <- select $ from (table @ImageArticle) >>= \imArt -> where_ (imArt ^. ImageArticleArticleId ==. val (entityKey art)) >> return imArt
   let images = fmap (imageArticleImageId . entityVal) images_
   return $

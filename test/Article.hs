@@ -187,7 +187,7 @@ articleCreate h clientEnv =
               multipartArticle = multipartIncomingArticle incomingArticle images
           b <- genBoundary
           returnedFormat <- runClientM (create authInfo (b, multipartArticle)) (clientEnv port) >>= shouldBeRightOr "Client or server error"
-          compareFormatArticleWithIncoming h returnedFormat incomingArticle aEnt [pEnt, cEnt] images
+          compareFormatArticleWithIncoming h returnedFormat incomingArticle aEnt (cEnt :| [pEnt]) images
 
       context "incomplete form" $ do
         it "responds with 400" $ \port -> do
@@ -557,7 +557,7 @@ articleGetA h clientEnv = describe "GET article/get/" $ do
           >>= shouldBeRightOr "Internal client server error"
       content resp
         `shouldBe` ( take (fromIntegral pagLimit) . sortBy (\fa1 fa2 -> formatArticleId fa1 `compare` formatArticleId fa2)
-                       . filter (\FormatArticle {..} -> getNestId formatArticleCategory == Just filterCategId)
+                       . filter (\FormatArticle {..} -> getNestId formatArticleCategory == filterCategId)
                        $ articles
                    )
 
@@ -614,9 +614,7 @@ articleGetA h clientEnv = describe "GET article/get/" $ do
                        . filter
                          ( \FormatArticle {..} ->
                              any (isPrefixOf search) (tails formatArticleContent)
-                               || case getNestName formatArticleCategory of
-                                 Nothing -> False
-                                 Just name -> any (isPrefixOf search) (tails name)
+                               || any (isPrefixOf search) (tails $ getNestName formatArticleCategory)
                                || any (isPrefixOf search) (tails (formatUserUsername formatArticleUser))
                          )
                        $ articles
@@ -809,7 +807,7 @@ compareFormatArticleWithDBArticle h format1 artId = do
   format2 <- hRunDB (A.hDBHandler h) (getFormatArticle artId) >>= shouldBeJustOr "DB error"
   format1 `shouldBe` format2
 
-compareFormatArticleWithIncoming :: A.Handler I.ImageTestIO -> FormatArticle -> IncomingArticle -> P.Entity User -> [P.Entity Category] -> [FileData Mem] -> Expectation
+compareFormatArticleWithIncoming :: A.Handler I.ImageTestIO -> FormatArticle -> IncomingArticle -> P.Entity User -> NonEmpty (P.Entity Category) -> [FileData Mem] -> Expectation
 compareFormatArticleWithIncoming h FormatArticle {..} incArt uId catTree fds = do
   formatArticleTitle `shouldBe` incomingTitle incArt
   formatArticleContent `shouldBe` incomingContent incArt
