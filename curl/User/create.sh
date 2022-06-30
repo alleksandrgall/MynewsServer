@@ -39,10 +39,8 @@ curl -v --request PUT \
 --header "Authorization: Basic `echo -n $cred | base64`" \
 --header 'Content-Type: multipart/form-data' \
 --header 'content-type: multipart/form-data; boundary=---011000010111000001101001' \
---form "user={
-\"name\": \"${name}\",
-\"password\": \"${pass}\",
-\"is_admin\": ${isAdmin},
-\"is_author\": ${isAuthor}
-}" \
+--form "name=$name" \
+--form "password=$password" \
+--form "is_admin=$isAdmin" \
+--form "is_author=$isAuthor" \
 --form "avatar=@${avatar}"

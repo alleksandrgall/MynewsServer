@@ -177,10 +177,10 @@ data FormatUser = FormatUser
   deriving (Show, Generic, Eq)
 
 instance ToJSON FormatUser where
-  toJSON = genericToJSON defaultOptions {fieldLabelModifier = camelTo2 '_' . drop 11}
+  toJSON = genericToJSON defaultOptions {fieldLabelModifier = camelTo2 '_' . drop 10}
 
 instance FromJSON FormatUser where
-  parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_' . drop 11}
+  parseJSON = genericParseJSON defaultOptions {fieldLabelModifier = camelTo2 '_' . drop 10}
 
 formatEntityUser :: Entity User -> FormatUser
 formatEntityUser entUser =
