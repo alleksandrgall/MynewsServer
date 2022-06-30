@@ -45,8 +45,6 @@ do
   index=$(($index + 1))
 done
 
-echo -n $cred | base64
-
 curl -v --request PUT \
   --url http://localhost:3000/article/create \
   --header "Authorization: Basic `echo -n $cred | base64`" \
