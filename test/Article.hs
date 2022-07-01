@@ -109,7 +109,6 @@ articleCreate h clientEnv =
   describe "PUT article/create/" $ do
     author <- runIO $ createTestUser "Author" "AuthorPass" Nothing Nothing False True
     notAnAuthor <- runIO $ createTestUser "NotAnAuthor" "NotAnAuthorPass" Nothing Nothing False False
-    notAuthor <- runIO $ createTestUser "NotAnAuthor" "NotAnAuthorPass" Nothing Nothing False True
     let image1 = FileData "someImName" "" "image/jpeg" "imContent1" :: FileData Mem
         image2 = FileData "veryRandomName" "" "image/png" "imContent2" :: FileData Mem
         image3 = FileData "thirdImage" "" "image/webm" "imContent3" :: FileData Mem
