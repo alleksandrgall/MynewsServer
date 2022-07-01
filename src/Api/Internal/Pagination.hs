@@ -90,4 +90,9 @@ selectPagination lim off maxLimit q =
         )
 
 newOffset :: Maybe Limit -> Maybe Offset -> Natural -> Offset
-newOffset lim off maxLimit = Offset $ maybe 0 unOffset off + fromIntegral (maybe maxLimit unLimit lim) + 1
+newOffset lim off maxLimit =
+  Offset $
+    maybe 0 unOffset off
+      + fromIntegral
+        (maybe maxLimit (\x -> if unLimit x > maxLimit then maxLimit else unLimit x) lim)
+      + 1
