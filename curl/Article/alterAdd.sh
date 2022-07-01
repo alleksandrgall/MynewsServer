@@ -81,9 +81,6 @@ do
   index=$(($index + 1))
 done
 
-echo $categoryForm $titleForm $contentForm $isPublishedForm $imageForms
-
-
 curl -v --request POST \
   --url http://localhost:3000/article/alter/${id} \
   --header "Authorization: Basic `echo -n $cred | base64`" \
