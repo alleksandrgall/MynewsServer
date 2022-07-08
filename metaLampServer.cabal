@@ -37,6 +37,8 @@ library
       Api.User
       App.Prod
       Config
+      DB.Migration
+      DB.Operations
       DB.Postgres
       Handlers.App
       Handlers.App.App
@@ -80,6 +82,7 @@ library
     , monad-logger
     , mtl
     , persistent
+    , persistent-migration
     , persistent-postgresql
     , persistent-template
     , servant
@@ -122,6 +125,7 @@ executable metaLampServer-exe
     , monad-logger
     , mtl
     , persistent
+    , persistent-migration
     , persistent-postgresql
     , persistent-template
     , servant
@@ -184,6 +188,7 @@ test-suite metaLampServer-test
     , monad-logger
     , mtl
     , persistent
+    , persistent-migration
     , persistent-postgresql
     , persistent-sqlite
     , persistent-template

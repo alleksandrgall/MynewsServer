@@ -42,6 +42,7 @@ packages:
 #
 extra-deps:
  - servant-multipart-client-0.12.1@sha256:fdaeea6a7e3b5459321520606a5dc0be55e16ebc3abe245fddb14df8a34a08cb,1976
+ - persistent-migration-0.3.0@sha256:1b28e22c2eeff694eed6835299b3a80104772d5d2262e6dbfa5c47d9e7594f59,3433
 
 # Override default flag values for local packages and extra-deps
 # flags: {}
