@@ -7,11 +7,11 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Time (UTCTime (utctDay), getCurrentTime)
 import qualified Database.Persist as P
 import Database.Persist.Sql (SqlPersistM)
-import qualified Database.Persist.Sql as P
-import Handlers.DB.Scheme (User (..), migrateAll)
+import Handlers.DB.Scheme (User (..))
 
-newtype Handler = Handler
-  { hRunDB :: forall a. SqlPersistM a -> IO a
+data Handler = Handler
+  { hRunDB :: forall a. SqlPersistM a -> IO a,
+    hMigrate :: IO ()
   }
 
 makeAdmin :: IO User
@@ -27,9 +27,6 @@ makeAdmin = do
         userIsAdmin = True,
         userIsAuthor = True
       }
-
-migrate_ :: Handler -> IO ()
-migrate_ h = hRunDB h $ P.runMigration migrateAll
 
 createDefaultAdmin :: Handler -> IO ()
 createDefaultAdmin h = makeAdmin >>= void . hRunDB h . P.insertUnique

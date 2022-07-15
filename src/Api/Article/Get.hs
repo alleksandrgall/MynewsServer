@@ -37,7 +37,6 @@ import Database.Esqueleto.Experimental
     on,
     orderBy,
     select,
-    selectOne,
     subSelectCount,
     table,
     union_,

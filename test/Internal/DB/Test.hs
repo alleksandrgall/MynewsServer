@@ -40,6 +40,7 @@ withHandler f = do
       void $ liftIO $ runSqlConn (P.insert admin) conn
       let h =
             Handler
-              { hRunDB = \x -> runResourceT . runNoLoggingT $ runSqlConn x conn
+              { hRunDB = \x -> runResourceT . runNoLoggingT $ runSqlConn x conn,
+                hMigrate = return ()
               }
       liftIO $ f h

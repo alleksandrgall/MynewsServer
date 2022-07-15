@@ -4,7 +4,7 @@ import Api (app)
 import qualified App.Prod as A
 import Config (askPort, withConfig)
 import qualified DB.Postgres as P
-import Handlers.DB (createDefaultAdmin, migrate_)
+import Handlers.DB (Handler (hMigrate), createDefaultAdmin)
 import qualified Image.File as I
 import qualified Katip.Prod as L
 import qualified Network.Wai.Handler.Warp as W
@@ -16,8 +16,7 @@ main = do
   case args of
     [] -> putStrLn "'config_path' --migrate | 'config_path'"
     confPath : "--migrate" : _ -> do
-      withConfig confPath $ \conf -> P.withHandler conf migrate_
-      putStrLn "Migrated succesfully"
+      withConfig confPath $ \conf -> P.withHandler conf hMigrate
     confPath : "--admin" : _ -> do
       withConfig confPath $ \conf -> P.withHandler conf createDefaultAdmin
       putStrLn "Default admin created"

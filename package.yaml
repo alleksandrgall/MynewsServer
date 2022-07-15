@@ -33,6 +33,7 @@ dependencies:
 - bytestring
 - persistent-postgresql
 - persistent-template
+- persistent-migration
 - configurator
 - temporary
 - transformers
